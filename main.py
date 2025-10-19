@@ -184,19 +184,19 @@ def create_leaderboard_table(df, category):
     
     # Table headers with Tailwind styling
     headers = [
-        Th("Position", cls="text-center px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-        Th("Number", cls="px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-        Th("Rider", cls="px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-        Th("Total Points", cls="text-center px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-        Th("Races", cls="text-center px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-        Th("Best Pos", cls="text-center px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-        Th("Worst Dropped", cls="text-center px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-        Th("Worst Race", cls="text-center px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+        Th("Position", cls="text-center px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+        Th("Number", cls="px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+        Th("Rider", cls="px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+        Th("Total Points", cls="text-center px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+        Th("Races", cls="text-center px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+        Th("Best Pos", cls="text-center px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+        Th("Worst Dropped", cls="text-center px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+        Th("Worst Race", cls="text-center px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
     ]
     
     # Add race columns
     for race_col in race_cols:
-        headers.append(Th(format_race_name(race_col), cls="text-center px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"))
+        headers.append(Th(format_race_name(race_col), cls="text-center px-3 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"))
     
     # Table rows with Tailwind styling
     rows = []
@@ -220,27 +220,27 @@ def create_leaderboard_table(df, category):
             worst_race_class = "text-red-400 text-xs"
         
         cells = [
-            Td(create_position_badge(int(row['FinalPosition'])), cls="text-center px-4 py-4"),
-            Td(Strong(str(int(row['RaceNumber']))), cls="px-4 py-4 font-bold text-slate-200"),
-            Td(f"{row['FirstName']} {row['LastName']}", cls="px-4 py-4 text-slate-200 min-w-[150px]"),
+            Td(create_position_badge(int(row['FinalPosition'])), cls="text-center px-3 py-4"),
+            Td(Strong(str(int(row['RaceNumber']))), cls="px-3 py-4 font-bold text-slate-200"),
+            Td(f"{row['FirstName']} {row['LastName']}", cls="px-3 py-4 text-slate-200 min-w-[150px]"),
             Td(
                 Span(
                     f"{row['TotalPoints']:.0f}", 
                     cls="px-3 py-1 gradient-bg rounded-full font-bold text-sm text-white"
                 ), 
-                cls="text-center px-4 py-4"
+                cls="text-center px-3 py-4"
             ),
-            Td(str(int(row['RacesParticipated'])), cls="text-center px-4 py-4 text-slate-300"),
-            Td(str(int(row['BestPosition'])), cls="text-center px-4 py-4 text-slate-300"),
-            Td(worst_dropped_display, cls=f"text-center px-4 py-4 {worst_dropped_class} font-semibold"),
-            Td(worst_race_display, cls=f"text-center px-4 py-4 {worst_race_class}"),
+            Td(str(int(row['RacesParticipated'])), cls="text-center px-3 py-4 text-slate-300"),
+            Td(str(int(row['BestPosition'])), cls="text-center px-3 py-4 text-slate-300"),
+            Td(worst_dropped_display, cls=f"text-center px-3 py-4 {worst_dropped_class} font-semibold"),
+            Td(worst_race_display, cls=f"text-center px-3 py-4 {worst_race_class}"),
         ]
         
         # Add race scores with Tailwind styling
         for race_col in race_cols:
             score = row[race_col]
             if pd.isna(score) or score == 0:
-                cells.append(Td("—", cls="text-center px-4 py-4 text-slate-500"))
+                cells.append(Td("—", cls="text-center px-3 py-4 text-slate-500"))
             else:
                 # Check if this is the best score (25 points typically means 1st place)
                 if score >= 25:
@@ -253,7 +253,7 @@ def create_leaderboard_table(df, category):
                         f"{score:.0f}", 
                         cls="px-2 py-1 bg-blue-500/10 text-blue-400 rounded text-sm"
                     )
-                cells.append(Td(score_badge, cls="text-center px-4 py-4"))
+                cells.append(Td(score_badge, cls="text-center px-3 py-4"))
         
         rows.append(Tr(*cells, cls="border-b border-slate-700/50 hover:bg-blue-500/5 transition-colors duration-200"))
     
