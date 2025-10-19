@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  dashboard:
+    build: .
+    container_name: bgx-dashboard
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - HOST=0.0.0.0
+    volumes:
+      # Mount the data directory as read-only
+      - ../result-parsing/bgx-result-2025-full:/app/data:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
