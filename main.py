@@ -484,6 +484,18 @@ def stats():
                 cls="max-w-7xl mx-auto px-4 pb-12"
             ),
             
+            # Footer
+            Div(
+                Div(
+                    P(
+                        "v0.0.1",
+                        cls="text-slate-500 text-sm font-mono"
+                    ),
+                    cls="max-w-7xl mx-auto px-4 py-6 text-right"
+                ),
+                cls="border-t border-slate-700/50"
+            ),
+            
             cls="min-h-screen py-8"
         )
     )
@@ -561,7 +573,7 @@ def get(category: str = "expert"):
     
     return Html(
         Head(
-            Title("BGX Navigation Championship 2025"),
+            Title("BGX Hard Enduro Championship 2025 (Unofficial)"),
             Meta(charset="utf-8"),
             Meta(name="viewport", content="width=device-width, initial-scale=1"),
             Script(src="https://cdn.tailwindcss.com"),
@@ -625,11 +637,11 @@ def get(category: str = "expert"):
             # Header Section
             Div(
                 H1(
-                    "🏆 BGX Navigation Championship 2025",
+                    "🏆 BGX Hard Enduro Championship 2025 (Unofficial)",
                     cls="text-4xl md:text-5xl lg:text-6xl font-black gradient-text mb-3"
                 ),
                 P(
-                    "BGX Navigation Championship Results",
+                    "BGX Hard Enduro Championship 2025 Results from first navigation day",
                     cls="text-slate-400 text-lg md:text-xl"
                 ),
                 cls="text-center py-12 px-4"
@@ -645,6 +657,17 @@ def get(category: str = "expert"):
             Div(
                 create_leaderboard_table(df, category),
                 cls="max-w-7xl mx-auto px-4 pb-12"
+            ),
+            # Footer
+            Div(
+                Div(
+                    P(
+                        "v0.0.1",
+                        cls="text-slate-500 text-sm font-mono"
+                    ),
+                    cls="max-w-7xl mx-auto px-4 py-6 text-right"
+                ),
+                cls="border-t border-slate-700/50"
             ),
             cls="min-h-screen py-8"
         )
