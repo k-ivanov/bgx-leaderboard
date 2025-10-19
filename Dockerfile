@@ -1,5 +1,10 @@
 FROM python:3.10-slim
 
+# Metadata
+LABEL version="0.0.1"
+LABEL description="BGX Hard Enduro Championship 2025 Dashboard"
+LABEL maintainer="BGX Dashboard"
+
 # Set working directory
 WORKDIR /app
 
@@ -21,6 +26,7 @@ EXPOSE 5001
 # Set environment variables
 ENV PORT=5001
 ENV HOST=0.0.0.0
+ENV APP_VERSION=0.0.1
 
 # Run the application
 CMD ["python", "main.py"]
