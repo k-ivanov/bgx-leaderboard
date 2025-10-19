@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY main.py .
 
 # Copy data directory (adjust path as needed)
-COPY /bgx-result-2025-full ./data/
+COPY data ./data
 
 # Expose port
 EXPOSE 5001
