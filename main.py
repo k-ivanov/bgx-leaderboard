@@ -83,16 +83,33 @@ class Visit:
     timestamp: str = None
     page: str = None
     category: str = None
+    device_type: str = None
 
 # Create visits table if it doesn't exist
 visits_table = db.create(Visit, pk="id", if_not_exists=True)
 
-def track_visit(page: str, category: str = ""):
-    """Track a page visit"""
+def detect_device_type(user_agent: str) -> str:
+    """Detect if the request is from mobile or desktop based on User-Agent"""
+    if not user_agent:
+        return "unknown"
+    
+    user_agent_lower = user_agent.lower()
+    mobile_indicators = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone']
+    
+    for indicator in mobile_indicators:
+        if indicator in user_agent_lower:
+            return "mobile"
+    
+    return "desktop"
+
+def track_visit(page: str, category: str = "", user_agent: str = ""):
+    """Track a page visit with device type"""
+    device_type = detect_device_type(user_agent)
     visits_table.insert(
         timestamp=datetime.now().isoformat(),
         page=page,
-        category=category
+        category=category,
+        device_type=device_type
     )
 
 # Define categories with display names
@@ -256,10 +273,11 @@ def health():
     }
 
 @rt("/stats")
-def stats():
+def stats(request):
     """Statistics page showing visit analytics"""
     # Track this visit
-    track_visit("stats", "")
+    user_agent = request.headers.get('user-agent', '')
+    track_visit("stats", "", user_agent)
     
     # Get all visits
     all_visits = list(visits_table())
@@ -268,6 +286,11 @@ def stats():
     # Count visits by page
     home_visits = sum(1 for v in all_visits if v.page == 'home')
     stats_visits = sum(1 for v in all_visits if v.page == 'stats')
+    
+    # Count visits by device type
+    mobile_visits = sum(1 for v in all_visits if getattr(v, 'device_type', 'unknown') == 'mobile')
+    desktop_visits = sum(1 for v in all_visits if getattr(v, 'device_type', 'unknown') == 'desktop')
+    unknown_visits = sum(1 for v in all_visits if getattr(v, 'device_type', 'unknown') == 'unknown')
     
     # Count visits by category
     category_counts = {}
@@ -311,11 +334,24 @@ def stats():
         page_display = "🏠 Home" if visit.page == 'home' else "📊 Stats"
         category_display = CATEGORIES.get(visit.category, visit.category) if visit.category else "—"
         
+        # Get device type with fallback for old records
+        device_type = getattr(visit, 'device_type', 'unknown')
+        if device_type == 'mobile':
+            device_display = "📱 Mobile"
+            device_class = "text-blue-400"
+        elif device_type == 'desktop':
+            device_display = "💻 Desktop"
+            device_class = "text-green-400"
+        else:
+            device_display = "❓ Unknown"
+            device_class = "text-slate-500"
+        
         recent_rows.append(
             Tr(
                 Td(time_str, cls="px-4 py-3 text-slate-300 text-sm font-mono"),
                 Td(page_display, cls="px-4 py-3 text-slate-200"),
                 Td(category_display, cls="px-4 py-3 text-slate-300"),
+                Td(device_display, cls=f"px-4 py-3 {device_class}"),
                 cls="border-b border-slate-700/50"
             )
         )
@@ -427,6 +463,57 @@ def stats():
                 cls="max-w-7xl mx-auto px-4 pb-8"
             ),
             
+            # Device Statistics
+            Div(
+                Div(
+                    H2("Device Breakdown", cls="text-2xl font-bold text-slate-100 mb-6"),
+                    Div(
+                        Div(
+                            Div(
+                                Span("💻", cls="text-3xl mb-3"),
+                                Div(str(desktop_visits), cls="text-3xl font-bold text-slate-100"),
+                                Div("Desktop", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
+                                Div(
+                                    f"{(desktop_visits/total_visits*100 if total_visits > 0 else 0):.1f}%",
+                                    cls="text-xs text-slate-500 mt-1"
+                                ),
+                                cls="text-center"
+                            ),
+                            cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
+                        ),
+                        Div(
+                            Div(
+                                Span("📱", cls="text-3xl mb-3"),
+                                Div(str(mobile_visits), cls="text-3xl font-bold text-slate-100"),
+                                Div("Mobile", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
+                                Div(
+                                    f"{(mobile_visits/total_visits*100 if total_visits > 0 else 0):.1f}%",
+                                    cls="text-xs text-slate-500 mt-1"
+                                ),
+                                cls="text-center"
+                            ),
+                            cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
+                        ),
+                        Div(
+                            Div(
+                                Span("❓", cls="text-3xl mb-3"),
+                                Div(str(unknown_visits), cls="text-3xl font-bold text-slate-100"),
+                                Div("Unknown", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
+                                Div(
+                                    f"{(unknown_visits/total_visits*100 if total_visits > 0 else 0):.1f}%",
+                                    cls="text-xs text-slate-500 mt-1"
+                                ),
+                                cls="text-center"
+                            ),
+                            cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
+                        ),
+                        cls="grid grid-cols-1 md:grid-cols-3 gap-6"
+                    ),
+                    cls="bg-slate-900/50 rounded-xl p-6 border border-slate-700"
+                ),
+                cls="max-w-7xl mx-auto px-4 pb-8"
+            ),
+            
             # Category Statistics
             Div(
                 Div(
@@ -470,10 +557,11 @@ def stats():
                                     Th("Timestamp", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
                                     Th("Page", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
                                     Th("Category", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
+                                    Th("Device", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
                                 )
                             ),
                             Tbody(*recent_rows) if recent_rows else Tbody(
-                                Tr(Td("No visits yet", colspan="3", cls="px-4 py-6 text-center text-slate-500"))
+                                Tr(Td("No visits yet", colspan="4", cls="px-4 py-6 text-center text-slate-500"))
                             ),
                             cls="w-full"
                         ),
@@ -501,10 +589,11 @@ def stats():
     )
 
 @rt("/")
-def get(category: str = "expert"):
+def get(request, category: str = "expert"):
     """Main page route with Tailwind styling"""
     # Track this visit
-    track_visit("home", category)
+    user_agent = request.headers.get('user-agent', '')
+    track_visit("home", category, user_agent)
     
     # Load data for selected category
     df = load_category_data(category)
