@@ -2,6 +2,32 @@
 
 A modern, responsive web application built with FastHTML to display the BGX Navigation Championship 2025 results.
 
+## Project Structure
+
+The codebase is organized into modular components for better maintainability:
+
+```
+bgx-navigation-dashboard/
+├── main.py              # Application entry point
+├── src/                 # Source code modules
+│   ├── __init__.py      # Package initialization
+│   ├── config.py        # Configuration and constants
+│   ├── models.py        # Database models
+│   ├── database.py      # Database operations
+│   ├── data_loader.py   # CSV loading and processing
+│   ├── ui_components.py # Reusable UI components
+│   ├── routes.py        # HTTP route handlers
+│   └── README.md        # Detailed module documentation
+├── data/                # Championship data
+│   └── bgx-result-2025-full/
+│       ├── expert.csv
+│       ├── profi.csv
+│       └── ...
+└── requirements.txt     # Python dependencies
+```
+
+See [src/README.md](src/README.md) for detailed module documentation.
+
 ## Features
 
 - 🏆 **Beautiful Leaderboard Interface** - Modern dark theme with gradient effects
