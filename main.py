@@ -127,14 +127,14 @@ def track_visit(page: str, category: str = "", user_agent: str = ""):
 
 # Define categories with display names
 CATEGORIES = {
+    "profi": "Pro",
     "expert": "Expert",
-    "profi": "Profi",
     "standard": "Standard",
     "standard_junior": "Standard Junior",
     "junior": "Junior",
     "women": "Women",
-    "seniors_40": "Seniors 40+",
-    "seniors_50": "Seniors 50+"
+    "seniors_40": "Senior 40+",
+    "seniors_50": "Senior 50+"
 }
 
 def load_category_data(category):
@@ -147,8 +147,28 @@ def load_category_data(category):
     return df
 
 def get_race_columns(df):
-    """Extract race column names from the dataframe"""
+    """Extract race column names from the dataframe and sort them by race order"""
+    # Define the desired race order
+    race_order = [
+        'Race_kyrnare',
+        'Race_stara_zagora',
+        'Race_buhovo',
+        'Race_gorna_malina',
+        'Race_alba_damascena',
+        'Race_six_days',
+        'Race_kirkovo'
+    ]
+    
+    # Get all race columns from the dataframe
     race_cols = [col for col in df.columns if col.startswith('Race_')]
+    
+    # Sort by the defined order, put any unexpected columns at the end
+    def sort_key(col):
+        if col in race_order:
+            return race_order.index(col)
+        return len(race_order)  # Put unknown races at the end
+    
+    race_cols.sort(key=sort_key)
     return race_cols
 
 def format_race_name(race_col):
