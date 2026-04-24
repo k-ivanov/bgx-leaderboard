@@ -1,239 +1,102 @@
-# BGX Navigation Championship Leaderboard
+# BGX Navigation Dashboard
 
-A modern, responsive web application built with FastHTML to display the BGX Navigation Championship 2025 results.
+Public read-only dashboard for the **BGX Hard Enduro Championship** — Bulgarian
+motorcycle racing series. Shows per-season leaderboards, race results, rider
+profiles, and the race calendar.
 
-## Project Structure
+## Stack
 
-The codebase is organized into modular components for better maintainability:
+- **Backend**: FastAPI + Pydantic v2 + SQLAlchemy 2 (`backend/app/`)
+- **Frontend**: Astro 4 SSG + Tailwind, 0 KB JS baseline (`frontend/`)
+- **Database**: Postgres + Alembic migrations
+- **Deploy**: Single Docker image on Railway
 
-```
-bgx-navigation-dashboard/
-├── main.py              # Application entry point
-├── src/                 # Source code modules
-│   ├── __init__.py      # Package initialization
-│   ├── config.py        # Configuration and constants
-│   ├── models.py        # Database models
-│   ├── database.py      # Database operations
-│   ├── data_loader.py   # CSV loading and processing
-│   ├── ui_components.py # Reusable UI components
-│   ├── routes.py        # HTTP route handlers
-│   └── README.md        # Detailed module documentation
-├── data/                # Championship data
-│   └── bgx-result-2025-full/
-│       ├── expert.csv
-│       ├── profi.csv
-│       └── ...
-└── requirements.txt     # Python dependencies
-```
+The site serves pre-generated static HTML for every route (all 700+ URLs —
+leaderboards, race results, every rider profile). Same URLs as the previous
+FastHTML app (`/2026/expert`, `/2025/r/42/ivan-ivanov`, etc.).
 
-See [src/README.md](src/README.md) for detailed module documentation.
+## Quick start
 
-## Features
-
-- 🏆 **Beautiful Leaderboard Interface** - Modern dark theme with gradient effects
-- 📊 **Multiple Categories** - Support for 8 categories:
-  - Expert
-  - Profi
-  - Standard
-  - Standard Junior
-  - Junior
-  - Women
-  - Seniors 40+
-  - Seniors 50+
-- 🎨 **Responsive Design** - Works perfectly on desktop, tablet, and mobile devices
-- ⚡ **Fast & Lightweight** - Built with FastHTML for optimal performance
-- 🎯 **Easy Navigation** - Quick category switching with intuitive tabs
-- 📈 **Race-by-Race Breakdown** - View detailed scores for each race:
-  - Alba Damascena
-  - Buhovo
-  - Gorna Malina
-  - Kirkovo
-  - Kyrnare
-  - Six Days
-  - Stara Zagora
-- 🥇 **Visual Ranking** - Gold, silver, bronze badges for top 3 positions
-- 📊 **Statistics Display** - Quick overview of total riders, races, and current category
-- 🎪 **Score Highlighting** - Special styling for top scores and race results
-
-## Installation
-
-1. Create a virtual environment (recommended):
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# 1. Start local Postgres
+docker compose up -d postgres
+
+# 2. Backend (terminal A)
+cd backend && ./start.sh                 # uvicorn on :5001 with --reload
+
+# 3. Seed 2025 data (one-time)
+source backend/.venv/bin/activate
+cd backend && python -m scripts.import_2025
+
+# 4. Frontend dev server (terminal B)
+cd frontend && npm install && npm run dev  # Astro on :4321, /api proxied to :5001
 ```
 
-2. Install dependencies:
+Open <http://localhost:4321>.
+
+## Production build
+
 ```bash
-pip install -r requirements.txt
+./scripts/build-image.sh bgx-dashboard:latest
+docker run --rm -p 5001:5001 \
+  -e DATABASE_URL=postgresql+psycopg2://bgx:bgx@host.docker.internal:5432/bgx \
+  bgx-dashboard:latest
 ```
 
-## Running the Application
+Full deploy steps in [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
-### Option 1: Using the start script (recommended)
+## Tests
+
 ```bash
-./start.sh
+cd backend && pytest        # 64 tests (API contract, slug pin, mount order,
+                            # CORS absence, track, 2025 golden)
 ```
 
-### Option 2: Manual start
-```bash
-# Activate virtual environment
-source venv/bin/activate
+## Project layout
 
-# Start the server
-python main.py
+```
+.
+├── backend/
+│   ├── app/                  # FastAPI app
+│   │   ├── api/              # 7 routers mounted at /api/*
+│   │   ├── schemas/          # Pydantic v2 response models
+│   │   ├── auth.py           # HTTP Basic for /api/stats
+│   │   ├── deps.py           # shared FastAPI Depends
+│   │   ├── main.py           # app factory + static mount
+│   │   └── slug.py           # pinned rider slug
+│   ├── src/                  # shared domain code
+│   │   ├── db/               # SQLAlchemy models + session
+│   │   ├── services/         # leaderboard + rider computation
+│   │   ├── config.py         # env + DATABASE_URL handling
+│   │   └── seasons.py
+│   ├── alembic/              # DB migrations
+│   ├── scripts/              # CSV importers (2025 aggregate, 2026 per-event)
+│   ├── tests/                # 64 pytest tests
+│   └── pyproject.toml
+├── frontend/
+│   ├── src/
+│   │   ├── pages/            # Astro file-based routing
+│   │   ├── layouts/          # BaseLayout.astro (SEO head, nav, footer)
+│   │   ├── components/       # common primitives + layout
+│   │   ├── lib/              # api.ts (typed fetch), copy.ts (microcopy), format.ts
+│   │   └── styles/           # global.css (tokens + print)
+│   └── package.json
+├── Dockerfile                # multi-stage: node → python
+├── docker-compose.yml        # local Postgres + dashboard
+├── railway.json              # Railway deploy config
+└── .plan/                    # planning + review artifacts
+    ├── refactor-plan.md
+    ├── ceo-review.md
+    ├── design-review.md
+    └── eng-review.md
 ```
 
-The application will be available at `http://localhost:5001`
+## Docs
 
-## Usage
-
-Once the server is running, you can:
-
-1. **Browse Categories**: Click on any category tab (Expert, Profi, Standard, etc.) to view that category's leaderboard
-2. **View Results**: See comprehensive race results including:
-   - Final position with visual badges for top 3
-   - Rider number and name
-   - Total points accumulated
-   - Number of races participated
-   - Best position achieved
-   - Individual race scores
-3. **Mobile Access**: Open `http://localhost:5001` on any device on the same network
-4. **Share Results**: The URL can be shared with query parameters, e.g., `http://localhost:5001/?category=profi`
-
-### URL Parameters
-
-- `category`: Specify which category to display (default: `expert`)
-  - Valid values: `expert`, `profi`, `standard`, `standard_junior`, `junior`, `women`, `seniors_40`, `seniors_50`
-
-Example URLs:
-- `http://localhost:5001/` - Default (Expert category)
-- `http://localhost:5001/?category=women` - Women's category
-- `http://localhost:5001/?category=profi` - Profi category
-
-## Data Source
-
-The application reads data from the `bgx-result-2025-full` folder, which contains CSV files for each category:
-- `expert.csv`
-- `profi.csv`
-- `standard.csv`
-- `standard_junior.csv`
-- `junior.csv`
-- `women.csv`
-- `seniors_40.csv`
-- `seniors_50.csv`
-
-## Technology Stack
-
-- **FastHTML**: Modern Python web framework
-- **Pandas**: Data processing and CSV reading
-- **Bootstrap 5**: CSS framework for responsive design
-- **Uvicorn**: ASGI server
-
-## Customization
-
-You can customize the appearance by modifying the CSS variables in the `Style` section of `main.py`:
-- Colors
-- Fonts
-- Spacing
-- Responsive breakpoints
-
-### Color Variables
-
-```css
---primary-color: #2563eb;
---secondary-color: #7c3aed;
---background: #0f172a;
---card-bg: #1e293b;
---text-primary: #f1f5f9;
---text-secondary: #94a3b8;
-```
-
-## Production Deployment
-
-For production deployment, you can use the following options:
-
-### Option 1: Using Uvicorn directly
-```bash
-uvicorn main:app --host 0.0.0.0 --port 5001 --workers 4
-```
-
-### Option 2: Behind a reverse proxy (Nginx)
-```bash
-uvicorn main:app --host 127.0.0.1 --port 5001 --workers 4
-```
-
-Then configure Nginx to proxy to port 5001.
-
-### Option 3: Using Docker
-Create a `Dockerfile`:
-```dockerfile
-FROM python:3.9-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-CMD ["python", "main.py"]
-```
-
-## Troubleshooting
-
-### Port Already in Use
-If port 5001 is already in use, you can modify the port in `main.py`:
-```python
-if __name__ == "__main__":
-    serve(port=8000)  # Change to desired port
-```
-
-### Data Not Loading
-- Verify the CSV files exist in `../result-parsing/bgx-result-2025-full/`
-- Check file permissions
-- Ensure CSV files have the correct column structure
-
-### Import Errors
-Make sure the virtual environment is activated:
-```bash
-source venv/bin/activate  # On Unix/macOS
-# or
-venv\Scripts\activate  # On Windows
-```
-
-## Future Enhancements
-
-Potential features for future versions:
-- [ ] Export to PDF functionality
-- [ ] Search/filter riders
-- [ ] Historical data comparison
-- [ ] Real-time updates during races
-- [ ] Admin panel for data management
-- [ ] Multi-language support
-
-## 🚀 Hosting / Deployment
-
-Want to make your dashboard accessible online or on your network?
-
-### Quick Options:
-
-**1. Railway (Easiest - Free):**
-```bash
-npm i -g @railway/cli
-railway login
-railway init && railway up
-```
-
-**2. Local Network:**
-```bash
-./deploy.sh  # Choose option 1
-```
-
-**3. Docker:**
-```bash
-docker-compose up -d
-```
-
-See `HOSTING-QUICKSTART.md` for quick setup or `DEPLOYMENT.md` for comprehensive guide.
+- [`DEPLOYMENT.md`](DEPLOYMENT.md) — deploy + env vars + metrics
+- [`CLAUDE.md`](CLAUDE.md) — project conventions for humans + AI agents
+- [`.plan/design-review.md`](.plan/design-review.md) — design source of truth (tokens, components, SEO templates, copy library, print, perf budgets)
 
 ## License
 
-MIT License
-
+Unofficial fan project. Data from the BGX Hard Enduro Championship.
