@@ -1,0 +1,31 @@
+---
+import type { RiderRef } from '~/lib/api.types';
+
+interface Props {
+  rider: RiderRef;
+  year: number;
+  withTeam?: boolean;
+  as?: 'a' | 'span';
+}
+
+const { rider, year, withTeam = false, as = 'a' } = Astro.props;
+const fullName = `${rider.first_name} ${rider.last_name}`;
+// URL-encode the slug for the href because it may contain Cyrillic and HTTP
+// path segments are expected to be ASCII in Location/Link headers.
+const href = `/${year}/r/${rider.race_number}/${encodeURIComponent(rider.slug)}`;
+---
+{as === 'a' ? (
+  <a href={href} class="rider-name font-medium hover:text-accent">
+    <span>{fullName}</span>
+    {withTeam && rider.team && (
+      <div class="rider-meta text-xs text-fg-muted">{rider.team}</div>
+    )}
+  </a>
+) : (
+  <span class="rider-name font-medium">
+    <span>{fullName}</span>
+    {withTeam && rider.team && (
+      <div class="rider-meta text-xs text-fg-muted">{rider.team}</div>
+    )}
+  </span>
+)}

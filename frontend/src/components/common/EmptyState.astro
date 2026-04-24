@@ -1,0 +1,17 @@
+---
+interface Props {
+  message: string;
+  ctaHref?: string;
+  ctaLabel?: string;
+}
+
+const { message, ctaHref, ctaLabel } = Astro.props;
+---
+<div class="p-12 text-center text-sm text-fg-muted">
+  <p>{message}</p>
+  {ctaHref && ctaLabel && (
+    <p class="mt-4">
+      <a href={ctaHref} class="text-accent hover:text-accent-strong">{ctaLabel}</a>
+    </p>
+  )}
+</div>

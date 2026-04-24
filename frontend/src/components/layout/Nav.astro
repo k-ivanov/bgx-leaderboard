@@ -1,0 +1,58 @@
+---
+import { copy } from '~/lib/copy';
+
+interface Props {
+  year: number;
+  activeYear: number;
+  allYears: number[];
+  currentNav: 'leaderboard' | 'races' | 'stats' | 'rider' | 'none';
+}
+
+const { activeYear, allYears, currentNav } = Astro.props;
+const years = [...allYears].sort((a, b) => b - a);
+---
+<nav class="sticky top-0 z-20 border-b border-border bg-bg-base/90 backdrop-blur nav">
+  <div class="max-w-container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
+    <a href="/" class="text-[15px] font-extrabold tracking-tight">
+      <span>{copy.app.brand.replace('.', '')}</span><span class="text-accent">.</span>
+      <span class="ml-1 font-normal text-fg-muted">{copy.app.brandSubtitle}</span>
+    </a>
+
+    {years.length > 0 && (
+      <div class="year-switcher flex gap-1 rounded-pill border border-border bg-bg-muted p-1">
+        {years.map(y => (
+          <a
+            href={`/${y}`}
+            class:list={[
+              'rounded-pill px-4 py-1.5 text-[13px] font-semibold transition-colors',
+              y === activeYear
+                ? 'bg-accent text-bg-base'
+                : 'text-fg-muted hover:text-fg',
+            ]}
+          >
+            {y}
+          </a>
+        ))}
+      </div>
+    )}
+
+    <div class="flex gap-4 text-[13px] text-fg-muted">
+      <a
+        href={`/${activeYear}/expert`}
+        class:list={[
+          currentNav === 'leaderboard' && 'text-fg',
+        ]}
+      >
+        {copy.nav.leaderboard}
+      </a>
+      <a
+        href={`/${activeYear}/events`}
+        class:list={[
+          currentNav === 'races' && 'text-fg',
+        ]}
+      >
+        {copy.nav.races}
+      </a>
+    </div>
+  </div>
+</nav>

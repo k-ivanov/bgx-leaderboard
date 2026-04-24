@@ -1,0 +1,120 @@
+---
+// StatsView — /stats (private analytics)
+// - <meta name="robots" content="noindex, nofollow">
+// - HTTP Basic auth enforced server-side by FastAPI (eng-review SC-1)
+// See design-review.md §4.6 + §11.
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import StatCard from '~/components/common/StatCard.astro';
+import EmptyState from '~/components/common/EmptyState.astro';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+
+// Fetch stats at build time — this embeds a snapshot in the static HTML,
+// which is acceptable for a developer-facing dashboard refreshed on rebuild.
+// If STATS_PASSWORD is set on the build environment, set an Authorization
+// header is not straightforward from a static build. For dev/internal use,
+// build without STATS_PASSWORD; in production Railway sets the env var and
+// the /stats page should be rebuilt by a scheduled job if the snapshot needs
+// to be fresh. Alternative: switch /stats to SSR/ISR later (out of scope).
+let stats: Awaited<ReturnType<typeof api.getStats>> | null = null;
+try {
+  stats = await api.getStats();
+} catch {
+  stats = null;
+}
+
+const seasons = await api.listSeasons();
+const current = seasons.seasons.find(s => s.is_current) ?? seasons.seasons[0];
+const year = current?.year ?? 2026;
+const allYears = seasons.seasons.map(s => s.year);
+
+const desktopCount = stats?.devices.find(d => d.device_type === 'desktop')?.count ?? 0;
+const mobileCount = stats?.devices.find(d => d.device_type === 'mobile')?.count ?? 0;
+const unknownCount = stats?.devices.find(d => d.device_type === 'unknown')?.count ?? 0;
+---
+<BaseLayout
+  title="Private Analytics · BGX"
+  description="Internal visit analytics for the BGX Hard Enduro dashboard."
+  noindex
+  year={year}
+  activeYear={year}
+  allYears={allYears}
+  currentNav="stats"
+>
+  <section class="page-header mb-8">
+    <h1 class="text-2xl md:text-[32px] font-extrabold tracking-[-0.02em]">
+      {copy.stats.h1}
+    </h1>
+    <p class="mt-2 text-[15px] text-fg-muted">{copy.stats.subtitleLast30}</p>
+  </section>
+
+  {stats ? (
+    <>
+      <section class="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label={copy.stats.statVisits} value={stats.total_visits} />
+        <StatCard label={copy.stats.statDesktop} value={desktopCount} />
+        <StatCard label={copy.stats.statMobile} value={mobileCount} />
+        <StatCard label={copy.stats.statUnknown} value={unknownCount} />
+      </section>
+
+      <section class="mb-10">
+        <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.stats.sectionByCategory}</h2>
+        {stats.per_category.length === 0 ? (
+          <EmptyState message={copy.stats.empty} />
+        ) : (
+          <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-bg-muted">
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">Category</th>
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">Season</th>
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">Visits</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.per_category.map(c => (
+                  <tr class="border-b border-border-muted">
+                    <td class="px-3 py-3">{c.category ?? '—'}</td>
+                    <td class="px-3 py-3 text-center mono">{c.season_year ?? '—'}</td>
+                    <td class="px-3 py-3 text-right mono">{c.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.stats.sectionRecent}</h2>
+        <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-bg-muted">
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">Time</th>
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">Page</th>
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">Category</th>
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">Season</th>
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">Device</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.recent.map(v => (
+                <tr class="border-b border-border-muted">
+                  <td class="px-3 py-3 mono">{new Date(v.timestamp).toISOString().replace('T', ' ').slice(0, 16)}</td>
+                  <td class="px-3 py-3">{v.page}</td>
+                  <td class="px-3 py-3">{v.category ?? '—'}</td>
+                  <td class="px-3 py-3 text-center mono">{v.season_year ?? '—'}</td>
+                  <td class="px-3 py-3 text-center">{v.device_type}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  ) : (
+    <EmptyState message="Stats are unavailable at the moment — check back after the next rebuild." />
+  )}
+</BaseLayout>

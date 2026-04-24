@@ -1,0 +1,159 @@
+---
+// RaceResultsView — /{year}/{category}/{eventSlug}
+// See design-review.md §4.3.
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import CategoryTabs from '~/components/layout/CategoryTabs.astro';
+import PositionBadge from '~/components/common/PositionBadge.astro';
+import PointsPill from '~/components/common/PointsPill.astro';
+import RiderName from '~/components/common/RiderName.astro';
+import TimeCell from '~/components/common/TimeCell.astro';
+import EmptyState from '~/components/common/EmptyState.astro';
+import { copy } from '~/lib/copy';
+import { formatDateLong } from '~/lib/format';
+import { api } from '~/lib/api';
+
+export async function getStaticPaths() {
+  const seasons = await api.listSeasons();
+  const paths: { params: { year: string; category: string; eventSlug: string } }[] = [];
+  for (const s of seasons.seasons) {
+    const detail = await api.getSeason(s.year);
+    const races = await api.listRaces(s.year);
+    for (const c of detail.categories) {
+      for (const ev of races.events) {
+        paths.push({
+          params: {
+            year: String(s.year),
+            category: c.code,
+            eventSlug: ev.slug,
+          },
+        });
+      }
+    }
+  }
+  return paths;
+}
+
+const { year, category, eventSlug } = Astro.params;
+const yearNum = Number(year);
+
+const [seasonsOut, detail, races, results] = await Promise.all([
+  api.listSeasons(),
+  api.getSeason(yearNum),
+  api.listRaces(yearNum),
+  api.getRaceResults(yearNum, category!, eventSlug!),
+]);
+
+const allYears = seasonsOut.seasons.map(s => s.year);
+const catName = results.category.display_name;
+const race = results.event;
+const round = races.events.findIndex(e => e.slug === eventSlug) + 1;
+const locationFull = race.location ? `${race.location}, Bulgaria` : 'Bulgaria';
+const dateLong = formatDateLong(race.event_date);
+
+const rows = results.rows;
+const winner = rows.find(r => r.position === 1);
+
+const title = `${race.name} Results · ${catName} · ${yearNum} · BGX Hard Enduro`;
+const description = winner
+  ? `${catName} results from Round ${round} ${race.name}, BGX Hard Enduro ${yearNum}. Winner: ${winner.rider.first_name} ${winner.rider.last_name}.`
+  : `${catName} results from Round ${round} ${race.name}, BGX Hard Enduro ${yearNum}.`;
+
+// Prev/next round navigation
+const raceIdx = races.events.findIndex(e => e.slug === eventSlug);
+const prev = raceIdx > 0 ? races.events[raceIdx - 1] : null;
+const next = raceIdx < races.events.length - 1 ? races.events[raceIdx + 1] : null;
+
+// Check which columns have data — hide empty timing columns
+const hasAnyTime = rows.some(r => r.time_ms != null);
+const hasAnyLaps = rows.some(r => r.laps != null);
+const hasAnyGps = rows.some(r => r.gps_penalty_ms != null);
+---
+<BaseLayout
+  title={title}
+  description={description}
+  year={yearNum}
+  activeYear={yearNum}
+  allYears={allYears}
+  currentNav="leaderboard"
+>
+  <section class="page-header mb-6">
+    <h1 class="text-2xl md:text-[32px] font-extrabold tracking-[-0.02em]">
+      {copy.raceResults.h1(round, race.name, catName)}
+    </h1>
+    <p class="mt-2 text-[15px] text-fg-muted">
+      {copy.raceResults.subtitleFmt(dateLong, locationFull)}
+    </p>
+  </section>
+
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm">
+    <a href={`/${yearNum}/${category}`} class="text-fg-muted hover:text-accent">
+      {copy.raceResults.backToLeaderboard(catName)}
+    </a>
+    {(prev || next) && (
+      <div class="flex gap-3 text-fg-muted">
+        {prev && (
+          <a href={`/${yearNum}/${category}/${prev.slug}`} class="hover:text-accent">
+            ← R{raceIdx} {prev.name}
+          </a>
+        )}
+        {next && (
+          <a href={`/${yearNum}/${category}/${next.slug}`} class="hover:text-accent">
+            R{raceIdx + 2} {next.name} →
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+
+  <CategoryTabs
+    year={yearNum}
+    categories={detail.categories}
+    activeCode={category!}
+    eventSlug={eventSlug}
+  />
+
+  {rows.length === 0 ? (
+    <EmptyState message={copy.raceResults.empty} />
+  ) : (
+    <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+      <div class="scrollx">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-bg-muted">
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.raceResults.colHash}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.raceResults.colNumber}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.raceResults.colRider}</th>
+              {hasAnyTime && <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.raceResults.colTime}</th>}
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.raceResults.colPoints}</th>
+              {hasAnyLaps && <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.raceResults.colLaps}</th>}
+              {hasAnyGps && <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.raceResults.colGps}</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => {
+              const isDnf = r.position === null && (r.notes ?? '').toLowerCase().includes('dnf');
+              return (
+                <tr class="hover:bg-[rgba(245,158,11,0.03)] border-b border-border-muted">
+                  <td class="px-3 py-3.5 text-center">
+                    <PositionBadge position={r.position} dnf={isDnf} />
+                  </td>
+                  <td class="px-3 py-3.5 text-center">
+                    <a href={`/${yearNum}/r/${r.rider.race_number}/${r.rider.slug}`} class="mono hover:text-accent">{r.rider.race_number}</a>
+                  </td>
+                  <td class="px-3 py-3.5">
+                    <RiderName rider={r.rider} year={yearNum} withTeam />
+                  </td>
+                  {hasAnyTime && <td class="px-3 py-3.5 text-right"><TimeCell ms={r.time_ms} /></td>}
+                  <td class="px-3 py-3.5 text-right"><PointsPill points={r.points} /></td>
+                  {hasAnyLaps && <td class="px-3 py-3.5 text-center">{r.laps ?? '—'}</td>}
+                  {hasAnyGps && <td class="px-3 py-3.5 text-right"><TimeCell ms={r.gps_penalty_ms} /></td>}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )}
+</BaseLayout>

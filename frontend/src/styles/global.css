@@ -1,0 +1,141 @@
+/* BGX global stylesheet.
+ * Tokens mirror design-review.md §3.1–§3.4. Any change here is a design-system change.
+ */
+
+/* Self-hosted variable fonts — bundled by Astro via @fontsource-variable.
+ * Import is in src/layouts/BaseLayout.astro so Astro can dedupe. */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bgx-font-feature-settings: 'cv11', 'ss01';
+  }
+
+  html {
+    /* Dark mode always-on (design-review §3.5 stance). */
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: theme('colors.bg.base');
+    color: theme('colors.fg.DEFAULT');
+    font-family: theme('fontFamily.sans');
+    font-feature-settings: var(--bgx-font-feature-settings);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    padding: 0;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: theme('colors.accent.DEFAULT');
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+}
+
+@layer components {
+  /* Tabular numerics everywhere a number appears. */
+  .mono {
+    font-family: theme('fontFamily.mono');
+    font-variant-numeric: tabular-nums;
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Sticky scroll affordance for wide tables on mobile (design-review §7.3).
+   * Right-edge fade signals horizontal scroll without any JS. */
+  .scrollx {
+    overflow-x: auto;
+    position: relative;
+  }
+  .scrollx::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, theme('colors.bg.base'));
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  /* CSS-only scroll-affordance: visible when content overflows.
+   * Tables set `data-overflow` via JS if we later need a more precise signal;
+   * for now, always show the fade — zero-JS is the priority. */
+  .scrollx::after {
+    opacity: 0.6;
+  }
+}
+
+/* Reduced-motion kill switch (design-review §3.4 + §17.5).
+ * Every transition goes to near-zero for anyone who opts out. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print styles (design-review §20). */
+@media print {
+  .nav,
+  .year-switcher,
+  .category-tabs,
+  .event-buttons,
+  .footer,
+  [data-print='hide'] {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  .card {
+    border: 1px solid #888;
+    background: white;
+  }
+  th, td {
+    border-color: #aaa;
+    background: white;
+    color: black;
+    padding: 6px 8px;
+  }
+  .pos-1 { background: #fde68a; color: #78350f; }
+  .pos-2 { background: #e2e8f0; color: #1f2937; }
+  .pos-3 { background: #fed7aa; color: #7c2d12; }
+  .points { background: white; color: black; font-weight: 700; padding: 0; }
+  .scrollx { overflow: visible; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  @page { margin: 1cm; }
+  body::after {
+    content: 'BGX Hard Enduro Championship';
+    display: block;
+    text-align: center;
+    font-size: 9pt;
+    margin-top: 1cm;
+    color: #666;
+  }
+}

@@ -1,0 +1,173 @@
+---
+// LeaderboardView — /{year}/{category}
+// See design-review.md §4.1 (anatomy) + §6 (motorsport guardrails).
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import CategoryTabs from '~/components/layout/CategoryTabs.astro';
+import RaceButtons from '~/components/layout/RaceButtons.astro';
+import PositionBadge from '~/components/common/PositionBadge.astro';
+import PointsPill from '~/components/common/PointsPill.astro';
+import RiderName from '~/components/common/RiderName.astro';
+import StatCard from '~/components/common/StatCard.astro';
+import EmptyState from '~/components/common/EmptyState.astro';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+
+export async function getStaticPaths() {
+  const seasons = await api.listSeasons();
+  const paths: { params: { year: string; category: string } }[] = [];
+  for (const s of seasons.seasons) {
+    const detail = await api.getSeason(s.year);
+    for (const c of detail.categories) {
+      paths.push({ params: { year: String(s.year), category: c.code } });
+    }
+  }
+  return paths;
+}
+
+const { year, category } = Astro.params;
+const yearNum = Number(year);
+
+const [seasonsOut, detail, leaderboard] = await Promise.all([
+  api.listSeasons(),
+  api.getSeason(yearNum),
+  api.getLeaderboard(yearNum, category!),
+]);
+
+const allYears = seasonsOut.seasons.map(s => s.year);
+const events = leaderboard.events;
+const rows = leaderboard.rows;
+
+// Stat cards
+const leader = rows[0];
+const secondPoints = rows[1]?.total_points ?? 0;
+const gap = leader ? leader.total_points - secondPoints : 0;
+const racesCompleted = new Set(
+  rows.flatMap(r => r.events.map(e => e.event_slug))
+).size;
+
+// SEO + JSON-LD
+const catName = leaderboard.category.display_name;
+const title = `${yearNum} ${catName} Leaderboard · BGX Hard Enduro`;
+const description = `${yearNum} ${catName} class leaderboard for the BGX Hard Enduro Championship. ${rows.length} riders, ${racesCompleted} of ${events.length} races completed.`;
+---
+<BaseLayout
+  title={title}
+  description={description}
+  year={yearNum}
+  activeYear={yearNum}
+  allYears={allYears}
+  currentNav="leaderboard"
+>
+  <section class="page-header mb-8">
+    <h1 class="text-2xl md:text-[32px] font-extrabold tracking-[-0.02em]">
+      {copy.leaderboard.h1(yearNum, catName)}
+    </h1>
+    <p class="mt-2 text-[15px] text-fg-muted">{copy.leaderboard.subtitle}</p>
+  </section>
+
+  {leader && (
+    <section class="stat-grid mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <StatCard
+        label={copy.leaderboard.statLeader}
+        value={`#${leader.rider.race_number}`}
+        sublabel={`${leader.rider.first_name} ${leader.rider.last_name}`}
+        emphasis
+        colSpan={2}
+      />
+      <StatCard
+        label={copy.leaderboard.statRaces}
+        value={`${racesCompleted} of ${events.length}`}
+      />
+      <StatCard label={copy.leaderboard.statGap} value={`${gap} pts`} />
+      <StatCard label={copy.leaderboard.statActive} value={rows.length} />
+    </section>
+  )}
+
+  <RaceButtons
+    year={yearNum}
+    events={events}
+    activeCategoryCode={category!}
+  />
+
+  <CategoryTabs
+    year={yearNum}
+    categories={detail.categories}
+    activeCode={category!}
+  />
+
+  {rows.length === 0 ? (
+    <EmptyState message={copy.leaderboard.empty(catName)} />
+  ) : (
+    <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+      <div class="scrollx">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-bg-muted">
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.leaderboard.colHash}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.leaderboard.colNumber}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.leaderboard.colRider}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.leaderboard.colTotal}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.leaderboard.colRaced}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.leaderboard.colBest}</th>
+              {leaderboard.championship_format === 'aggregate_2025' && (
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.leaderboard.colDropped}</th>
+              )}
+              {events.map(ev => (
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border whitespace-nowrap">
+                  <a href={`/${yearNum}/${category}/${ev.slug}`} class="hover:text-accent">{ev.name}</a>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => {
+              const entriesBySlug = new Map(row.events.map(e => [e.event_slug, e]));
+              return (
+                <tr class="hover:bg-[rgba(245,158,11,0.03)] border-b border-border-muted">
+                  <td class="px-3 py-3.5 text-center">
+                    <PositionBadge position={row.final_position} />
+                  </td>
+                  <td class="px-3 py-3.5 text-center">
+                    <a href={`/${yearNum}/r/${row.rider.race_number}/${row.rider.slug}`} class="mono hover:text-accent">
+                      {row.rider.race_number}
+                    </a>
+                  </td>
+                  <td class="px-3 py-3.5">
+                    <RiderName rider={row.rider} year={yearNum} withTeam />
+                  </td>
+                  <td class="px-3 py-3.5 text-right mono">
+                    {row.total_points % 1 === 0 ? row.total_points : row.total_points.toFixed(1)}
+                  </td>
+                  <td class="px-3 py-3.5 text-center">{row.races_participated}</td>
+                  <td class="px-3 py-3.5 text-center">{row.best_position}</td>
+                  {leaderboard.championship_format === 'aggregate_2025' && (
+                    <td class="px-3 py-3.5 text-center mono">
+                      {row.worst_dropped != null ? (
+                        <span class="text-fg-faint">−{row.worst_dropped}</span>
+                      ) : (
+                        <span class="text-fg-faint">—</span>
+                      )}
+                    </td>
+                  )}
+                  {events.map(ev => {
+                    const entry = entriesBySlug.get(ev.slug);
+                    return (
+                      <td class="px-3 py-3.5 text-right">
+                        {entry ? (
+                          <PointsPill points={entry.points} />
+                        ) : (
+                          <span class="text-fg-faint">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )}
+</BaseLayout>

@@ -1,0 +1,31 @@
+---
+import type { CategoryRef } from '~/lib/api.types';
+
+interface Props {
+  year: number;
+  categories: CategoryRef[];
+  activeCode: string;
+  eventSlug?: string;  // if provided, tabs link to /{year}/{category}/{eventSlug}
+}
+
+const { year, categories, activeCode, eventSlug } = Astro.props;
+---
+<div class="category-tabs -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 mb-6 md:overflow-visible">
+  {categories.map(c => {
+    const href = eventSlug
+      ? `/${year}/${c.code}/${eventSlug}`
+      : `/${year}/${c.code}`;
+    const active = c.code === activeCode;
+    return (
+      <a
+        href={href}
+        class:list={[
+          'flex-none rounded-md px-4 py-2 text-[13px] font-semibold transition-colors',
+          active
+            ? 'bg-accent border border-accent text-bg-base'
+            : 'bg-bg-elevated border border-border text-fg-muted hover:border-accent hover:text-fg',
+        ]}
+      >{c.display_name}</a>
+    );
+  })}
+</div>
