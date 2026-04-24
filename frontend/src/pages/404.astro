@@ -16,8 +16,8 @@ try {
 }
 ---
 <BaseLayout
-  title="Page Not Found · BGX Hard Enduro"
-  description="The page you're looking for doesn't exist on bgx."
+  title={copy.notFound.pageTitle}
+  description={copy.notFound.metaDescription}
   noindex
   year={year}
   activeYear={year}
@@ -30,7 +30,7 @@ try {
     <p class="mt-2 text-sm text-fg-muted">{copy.notFound.helpBody}</p>
     <p class="mt-10">
       <a href={`/${year}/expert`} class="text-accent hover:text-accent-strong text-base">
-        → {copy.notFound.ctaCurrentLeaderboard(year)}
+        {copy.notFound.ctaCurrentLeaderboard(year)}
       </a>
     </p>
   </section>

@@ -61,8 +61,21 @@ const totalPoints = profile.results.reduce(
 const racesEntered = new Set(profile.results.map(r => r.event.slug)).size;
 const primaryCategory = profile.categories[0];
 
-const title = `${rider.first_name} ${rider.last_name} · ${primaryCategory?.display_name ?? 'Rider'} · ${yearNum} · BGX Hard Enduro`;
-const description = `${rider.first_name} ${rider.last_name}, #${rider.race_number}, ${primaryCategory?.display_name ?? 'rider'} class. Best finish: ${bestFinish ? ordinal(bestFinish) : '—'}. ${racesEntered} races entered in the ${yearNum} BGX Hard Enduro Championship.`;
+const title = copy.seo.riderTitle(
+  rider.first_name,
+  rider.last_name,
+  primaryCategory?.display_name ?? copy.common.rider,
+  yearNum,
+);
+const description = copy.seo.riderDescription(
+  rider.first_name,
+  rider.last_name,
+  rider.race_number,
+  primaryCategory?.display_name ?? copy.common.rider,
+  bestFinish ? ordinal(bestFinish) : '—',
+  racesEntered,
+  yearNum,
+);
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -130,12 +143,12 @@ for (const r of profile.results) {
               <table class="w-full text-sm">
                 <thead>
                   <tr class="bg-bg-muted">
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">Round</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">Race</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">Date</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">Position</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">Points</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">Time</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.rider.colRound}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.rider.colRace}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.rider.colDate}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.rider.colPosition}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.rider.colPoints}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.rider.colTime}</th>
                   </tr>
                 </thead>
                 <tbody>

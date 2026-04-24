@@ -35,8 +35,14 @@ const locationFull = detail.event.location
   : 'Bulgaria';
 const dateLong = formatDateLong(detail.event.event_date);
 
-const title = `${detail.event.name} · Round ${round} · ${yearNum} · BGX Hard Enduro`;
-const description = `Round ${round} of the BGX Hard Enduro Championship ${yearNum}. ${detail.event.name}${detail.event.location ? `, ${detail.event.location}` : ''}${detail.event.event_date ? `, ${dateLong}` : ''}.`;
+const title = copy.seo.raceOverviewTitle(detail.event.name, round, yearNum);
+const description = copy.seo.raceOverviewDescription(
+  round,
+  yearNum,
+  detail.event.name,
+  detail.event.location,
+  detail.event.event_date ? dateLong : null,
+);
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -88,7 +94,7 @@ const jsonLd = {
             {c.display_name}
           </div>
           <div class="mt-1 text-lg font-semibold text-fg">
-            View results →
+            {copy.raceOverview.viewResults}
           </div>
         </a>
       ))}

@@ -48,8 +48,12 @@ if (disambig.candidates.length === 1) {
   );
 }
 
-const title = `Rider #${raceNum} · ${yearNum} · BGX Hard Enduro`;
-const description = `${disambig.candidates.length} riders compete with number ${raceNum} in the ${yearNum} BGX Hard Enduro Championship.`;
+const title = copy.seo.riderDisambigTitle(raceNum, yearNum);
+const description = copy.seo.riderDisambigDescription(
+  disambig.candidates.length,
+  raceNum,
+  yearNum,
+);
 ---
 <BaseLayout
   title={title}

@@ -48,8 +48,14 @@ const racesCompleted = new Set(
 
 // SEO + JSON-LD
 const catName = leaderboard.category.display_name;
-const title = `${yearNum} ${catName} Leaderboard · BGX Hard Enduro`;
-const description = `${yearNum} ${catName} class leaderboard for the BGX Hard Enduro Championship. ${rows.length} riders, ${racesCompleted} of ${events.length} races completed.`;
+const title = copy.seo.leaderboardTitle(yearNum, catName);
+const description = copy.seo.leaderboardDescription(
+  yearNum,
+  catName,
+  rows.length,
+  racesCompleted,
+  events.length,
+);
 ---
 <BaseLayout
   title={title}

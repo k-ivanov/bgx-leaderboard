@@ -1,56 +1,64 @@
 // Microcopy library — single source of truth for every user-facing string.
 // Design rule: no inline strings in `.astro` or `.vue` components.
 // See design-review.md §14 (vocabulary) + §16 (microcopy).
+//
+// Language: Bulgarian. Rider names and team names in the DB are already in
+// Cyrillic. Page titles, meta descriptions, JSON-LD structured-data terms
+// that follow schema.org conventions ("Hard Enduro", "Enduro rider") stay
+// in English — see app/main.py and the page frontmatter.
 
 export const copy = {
   app: {
-    brand: 'BGX.',
-    brandSubtitle: 'Hard Enduro',
+    brand: 'BGX.',                   // kept as brand mark
+    brandSubtitle: 'Хард Ендуро',
     footer: (version: string) =>
-      `BGX Hard Enduro Championship · Unofficial · v${version}`,
+      `Шампионат БГХ Хард Ендуро · Неофициален · v${version}`,
   },
   nav: {
-    leaderboard: 'Leaderboard',
-    races: 'Races',
-    stats: 'Stats',
+    leaderboard: 'Класиране',
+    races: 'Състезания',
+    stats: 'Статистика',
   },
   leaderboard: {
-    h1: (year: number, category: string) => `${year} ${category} Leaderboard`,
-    subtitle: 'Bulgarian Hard Enduro Championship',
-    empty: (category: string) => `No riders in ${category} yet.`,
-    statLeader: 'Leader',
-    statRaces: 'Races',
-    statGap: 'Gap 1→2',
-    statActive: 'Active riders',
+    h1: (year: number, category: string) =>
+      `Класиране ${category} · ${year}`,
+    subtitle: 'Български шампионат по Хард Ендуро',
+    empty: (category: string) =>
+      `Все още няма състезатели в категория ${category}.`,
+    statLeader: 'Лидер',
+    statRaces: 'Състезания',
+    statGap: 'Преднина 1→2',
+    statActive: 'Активни състезатели',
     colHash: '#',
-    colNumber: 'No.',
-    colRider: 'Rider',
-    colTotal: 'Total',
-    colRaced: 'Raced',
-    colBest: 'Best',
-    colDropped: 'Dropped',
+    colNumber: '№',
+    colRider: 'Състезател',
+    colTotal: 'Общо',
+    colRaced: 'Участия',
+    colBest: 'Най-добро',
+    colDropped: 'Отпаднал',
   },
   races: {
-    h1: (year: number) => `${year} Races`,
+    h1: (year: number) => `Състезания ${year}`,
     subtitleFmt: (total: number, upcoming: number, completed: number) =>
-      `${total} races · ${upcoming} upcoming · ${completed} completed`,
-    empty: (year: number) => `No races scheduled for ${year} yet.`,
-    statusCompleted: '✓ Completed',
-    statusUpcoming: 'Upcoming',
+      `${total} състезания · ${upcoming} предстоящи · ${completed} завършени`,
+    empty: (year: number) =>
+      `Все още няма насрочени състезания за ${year} г.`,
+    statusCompleted: '✓ Завършено',
+    statusUpcoming: 'Предстоящо',
     colHash: '#',
-    colRace: 'Race',
-    colLocation: 'Location',
-    colDate: 'Date',
-    colStatus: 'Status',
+    colRace: 'Състезание',
+    colLocation: 'Място',
+    colDate: 'Дата',
+    colStatus: 'Статус',
   },
   raceResults: {
     h1: (round: number, raceName: string, categoryName: string) =>
       `R${round} · ${raceName} — ${categoryName}`,
     subtitleFmt: (dateLong: string, locationFull: string) =>
       `${dateLong} · ${locationFull}`,
-    empty: "Results for this category and race aren't in yet.",
+    empty: 'Резултатите за тази категория и състезание все още не са налични.',
     backToLeaderboard: (category: string) =>
-      `← Back to ${category} Leaderboard`,
+      `← Назад към класиране ${category}`,
     prevNextFmt: (prev: string | null, next: string | null) => {
       if (prev && next) return `← ${prev} · ${next} →`;
       if (prev) return `← ${prev}`;
@@ -58,22 +66,23 @@ export const copy = {
       return '';
     },
     colHash: '#',
-    colNumber: 'No.',
-    colRider: 'Rider',
-    colTime: 'Time',
-    colPoints: 'Pts',
-    colLaps: 'Laps',
-    colGps: 'GPS',
-    dnf: 'DNF',
+    colNumber: '№',
+    colRider: 'Състезател',
+    colTime: 'Време',
+    colPoints: 'Т.',                 // Bulgarian abbreviation for Points (Точки)
+    colLaps: 'Обиколки',
+    colGps: 'GPS',                   // kept — widely understood motorsport abbrev
+    dnf: 'DNF',                      // kept — international motorsport convention
     dns: 'DNS',
   },
   raceOverview: {
     h1: (raceName: string) => raceName,
     subtitleFmt: (round: number, dateLong: string, locationFull: string) =>
-      `Round ${round} · ${dateLong} · ${locationFull}`,
-    sectionResults: 'Results by category',
-    categoryPendingLabel: '(pending)',
-    empty: 'Race details coming soon.',
+      `Кръг ${round} · ${dateLong} · ${locationFull}`,
+    sectionResults: 'Резултати по категория',
+    categoryPendingLabel: '(предстои)',
+    empty: 'Подробности за състезанието скоро.',
+    viewResults: 'Виж резултати →',
   },
   rider: {
     metaFmt: (
@@ -86,47 +95,132 @@ export const copy = {
       racesEntered: number,
       totalPoints: number,
     ) =>
-      `Best: ${bestFinish} · Races entered: ${racesEntered} · Total points: ${totalPoints}`,
-    sectionSeasonResults: (category: string) => `Season results · ${category}`,
-    empty: (year: number) => `This rider has no results yet for ${year}.`,
+      `Най-добро: ${bestFinish} · Участия: ${racesEntered} · Общо точки: ${totalPoints}`,
+    sectionSeasonResults: (category: string) =>
+      `Резултати за сезона · ${category}`,
+    empty: (year: number) =>
+      `Няма резултати за този състезател за сезон ${year}.`,
     entriesFmt: (entered: number, total: number) =>
-      `Entered ${entered} of ${total} races this season.`,
+      `Участия в ${entered} от ${total} състезания този сезон.`,
     backToCategory: (category: string) =>
-      `← Back to ${category} Leaderboard`,
+      `← Назад към класиране ${category}`,
     disambigH1: (raceNumber: number, year: number) =>
-      `Rider #${raceNumber} · ${year} Season`,
+      `Състезател №${raceNumber} · Сезон ${year}`,
     disambigHelp: (count: number, raceNumber: number) =>
       count === 2
-        ? `Two riders compete with number ${raceNumber} this season:`
-        : `${count} riders compete with number ${raceNumber} this season:`,
+        ? `Двама състезатели се състезават с номер ${raceNumber} този сезон:`
+        : `${count} състезатели се състезават с номер ${raceNumber} този сезон:`,
+    colRound: 'Кръг',
+    colRace: 'Състезание',
+    colDate: 'Дата',
+    colPosition: 'Позиция',
+    colPoints: 'Точки',
+    colTime: 'Време',
   },
   stats: {
-    h1: 'Private analytics',
-    subtitleLast30: 'Last 30 days',
-    statVisits: 'Visits',
-    statDesktop: 'Desktop',
-    statMobile: 'Mobile',
-    statUnknown: 'Unknown',
-    sectionByCategory: 'Visits by category',
-    sectionRecent: 'Recent visits (last 25)',
-    empty: 'No visits recorded yet.',
+    h1: 'Вътрешна статистика',
+    subtitleLast30: 'Последните 30 дни',
+    statVisits: 'Посещения',
+    statDesktop: 'Десктоп',
+    statMobile: 'Мобилни',
+    statUnknown: 'Неизвестно',
+    sectionByCategory: 'Посещения по категория',
+    sectionRecent: 'Последни посещения (25)',
+    empty: 'Все още няма регистрирани посещения.',
+    colTime: 'Време',
+    colPage: 'Страница',
+    colCategory: 'Категория',
+    colSeason: 'Сезон',
+    colVisits: 'Посещения',
+    colDevice: 'Устройство',
+    unavailable: 'Статистиката не е налична в момента — проверете отново след следващия билд.',
   },
   notFound: {
     h1: '404',
-    subtitle: "We can't find that page.",
-    helpBody: 'The link may be old or the page may have been removed.',
+    subtitle: 'Не можем да намерим тази страница.',
+    helpBody: 'Линкът може да е стар или страницата да е премахната.',
     ctaCurrentLeaderboard: (year: number) =>
-      `Go to the ${year} Leaderboard`,
+      `→ Към класирането за ${year}`,
+    pageTitle: 'Страницата не е намерена · BGX Хард Ендуро',
+    metaDescription: 'Страницата, която търсите, не съществува на bgx.',
   },
   error500: {
-    h1: 'Something went wrong',
-    subtitle:
-      'An unexpected error occurred. Please try again in a moment.',
-    cta: 'Go to the home page',
+    h1: 'Нещо се обърка',
+    subtitle: 'Възникна неочаквана грешка. Моля опитайте отново след малко.',
+    cta: 'Към началната страница',
   },
   common: {
-    backToTop: '↑ Top',
-    loading: 'Loading…',
+    backToTop: '↑ Нагоре',
+    loading: 'Зареждане…',
     noTime: '—',
+    rider: 'състезател',
+  },
+
+  // SEO title + meta-description templates. English brand "BGX Хард Ендуро"
+  // in Bulgarian Cyrillic transliteration (Хард Ендуро is the standard spelling).
+  seo: {
+    brand: 'BGX Хард Ендуро',
+    leaderboardTitle: (year: number, category: string) =>
+      `Класиране ${category} · ${year} · BGX Хард Ендуро`,
+    leaderboardDescription: (
+      year: number,
+      category: string,
+      riderCount: number,
+      racesCompleted: number,
+      totalRaces: number,
+    ) =>
+      `Класиране за категория ${category} от сезон ${year} на шампионата БГХ Хард Ендуро. ` +
+      `${riderCount} състезатели, ${racesCompleted} от ${totalRaces} завършени състезания.`,
+    racesTitle: (year: number) =>
+      `Състезания ${year} · Шампионат БГХ Хард Ендуро`,
+    racesDescription: (year: number, total: number, first: string | null, last: string | null) =>
+      `Календар на състезанията за сезон ${year} от шампионата БГХ Хард Ендуро. ` +
+      `${total} състезания${first && last ? ` от ${first} до ${last}` : ''}.`,
+    raceOverviewTitle: (raceName: string, round: number, year: number) =>
+      `${raceName} · Кръг ${round} · ${year} · BGX Хард Ендуро`,
+    raceOverviewDescription: (
+      round: number,
+      year: number,
+      raceName: string,
+      location: string | null | undefined,
+      dateLong: string | null | undefined,
+    ) =>
+      `Кръг ${round} от шампионата БГХ Хард Ендуро ${year}. ${raceName}` +
+      (location ? `, ${location}` : '') +
+      (dateLong ? `, ${dateLong}` : '') + '.',
+    raceResultsTitle: (raceName: string, category: string, year: number) =>
+      `${raceName} резултати · ${category} · ${year} · BGX Хард Ендуро`,
+    raceResultsDescription: (
+      category: string,
+      round: number,
+      raceName: string,
+      year: number,
+      winnerName: string | null,
+    ) =>
+      winnerName
+        ? `Резултати за категория ${category} от кръг ${round} ${raceName}, ` +
+          `BGX Хард Ендуро ${year}. Победител: ${winnerName}.`
+        : `Резултати за категория ${category} от кръг ${round} ${raceName}, ` +
+          `BGX Хард Ендуро ${year}.`,
+    riderTitle: (first: string, last: string, category: string, year: number) =>
+      `${first} ${last} · ${category} · ${year} · BGX Хард Ендуро`,
+    riderDescription: (
+      first: string,
+      last: string,
+      raceNumber: number,
+      category: string,
+      bestFinish: string,
+      racesEntered: number,
+      year: number,
+    ) =>
+      `${first} ${last}, №${raceNumber}, категория ${category}. ` +
+      `Най-добро класиране: ${bestFinish}. Участия в ${racesEntered} състезания от сезон ${year} на шампионата БГХ Хард Ендуро.`,
+    riderDisambigTitle: (raceNumber: number, year: number) =>
+      `Състезател №${raceNumber} · ${year} · BGX Хард Ендуро`,
+    riderDisambigDescription: (count: number, raceNumber: number, year: number) =>
+      `${count} състезатели се състезават с номер ${raceNumber} в шампионата БГХ Хард Ендуро ${year}.`,
+    statsTitle: 'Вътрешна статистика · BGX',
+    statsDescription: 'Вътрешна статистика за посещенията на сайта БГХ Хард Ендуро.',
+    siteName: 'Шампионат БГХ Хард Ендуро',
   },
 } as const;

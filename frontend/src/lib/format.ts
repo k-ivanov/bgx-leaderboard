@@ -32,14 +32,16 @@ export function formatTime(ms: number | null | undefined): string {
  * Returns `—` for null. Uses English month names regardless of locale
  * (intentional — UI chrome is English per design-review §14).
  */
+// Bulgarian month names. Short form uses the conventional 3-letter abbreviations
+// with a trailing period where the full word is longer than the stem.
 const SHORT_MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'ян.', 'февр.', 'март', 'апр.', 'май', 'юни',
+  'юли', 'авг.', 'септ.', 'окт.', 'ноем.', 'дек.',
 ];
 
 const LONG_MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'януари', 'февруари', 'март', 'април', 'май', 'юни',
+  'юли', 'август', 'септември', 'октомври', 'ноември', 'декември',
 ];
 
 export function formatDateShort(iso: string | null | undefined): string {
@@ -72,22 +74,28 @@ export function isPast(iso: string | null | undefined, now: Date = new Date()): 
 }
 
 /**
- * Convert an integer position (1st, 2nd, 3rd, …) to its ordinal string.
- * Used on rider page header ("Best: 1st").
+ * Bulgarian-flavored ordinal for race placings ("Най-добро: 1-во").
+ * Uses the neuter form (implicit "място"): 1-во, 2-ро, 3-то, 4-то, 5-о, ...
+ * Keeps it simple — no full declension table, just the common abbreviated forms.
  */
 export function ordinal(n: number): string {
-  if (n >= 11 && n <= 13) return `${n}th`;
-  const last = n % 10;
-  if (last === 1) return `${n}st`;
-  if (last === 2) return `${n}nd`;
-  if (last === 3) return `${n}rd`;
-  return `${n}th`;
+  if (n === 1) return '1-во';
+  if (n === 2) return '2-ро';
+  if (n === 3) return '3-то';
+  if (n === 4) return '4-то';
+  if (n === 7) return '7-мо';
+  if (n === 8) return '8-мо';
+  return `${n}-о`;
 }
 
 /**
- * Canonical per-category display name lookup. The backend already returns
- * `display_name` on CategoryRef, so this is used only as a fallback when
- * a caller has just the code.
+ * Fallback category display name lookup when only the code is available.
+ * The backend returns the canonical `display_name` on CategoryRef — prefer that.
+ *
+ * Category names kept in English because they are the federation's official
+ * class labels ("Expert", "Pro", "Junior" etc.) that match the results CSVs
+ * and rider licences. Changing them to Bulgarian here would create a
+ * mismatch with the printed materials.
  */
 export function categoryDisplayName(code: string, fallback?: string): string {
   const TABLE: Record<string, string> = {

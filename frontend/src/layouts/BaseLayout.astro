@@ -20,6 +20,8 @@ import { copy } from '~/lib/copy';
 import Nav from '~/components/layout/Nav.astro';
 import Footer from '~/components/layout/Footer.astro';
 
+const SITE_NAME = copy.seo.siteName;
+
 interface Props {
   title: string;
   description: string;
@@ -56,7 +58,7 @@ const ogImageUrl = ogImage.startsWith('http')
 const appVersion = '0.2.0';
 ---
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="bg" class="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -66,7 +68,7 @@ const appVersion = '0.2.0';
     {noindex && <meta name="robots" content="noindex, nofollow" />}
 
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="BGX Hard Enduro Championship" />
+    <meta property="og:site_name" content={SITE_NAME} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
