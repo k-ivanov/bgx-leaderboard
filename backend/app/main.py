@@ -3,7 +3,8 @@
 Mount order is load-bearing (eng-review A-1 / N1):
     1. /api/* routers          → JSON endpoints
     2. /health                 → JSON health check
-    3. /* StaticFiles          → serves the Astro-built frontend dist/
+    3. /admin                  → SQLAdmin panel (session auth, configurable)
+    4. /* StaticFiles          → serves the Astro-built frontend dist/
                                  (404.html fallback for unknown paths)
 
 No CORS middleware is installed — the frontend and API ship same-origin.
@@ -101,6 +102,11 @@ def create_app() -> FastAPI:
     app.include_router(stats_api.router)
     app.include_router(track_api.router)
 
+    # Admin panel mounts at /admin BEFORE StaticFiles so it takes priority
+    # over the catch-all. Opt-in via ADMIN_PASSWORD env var.
+    from app.admin import setup_admin
+    setup_admin(app)
+
     _mount_frontend_if_present(app)
 
     return app
@@ -174,6 +180,14 @@ class FrontendStatic(StaticFiles):
         # `path` comes through WITHOUT the leading slash because StaticFiles
         # is mounted at "/"; e.g. "/api/foo" becomes "api/foo".
         if path == "api" or path.startswith("api/"):
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Not Found"},
+            )
+        # /admin is a sub-app; if a request reaches here it's because the
+        # sub-app returned 404 itself. Return JSON to keep admin responses
+        # consistent and avoid serving the motorsport 404.html for /admin paths.
+        if path == "admin" or path.startswith("admin/"):
             return JSONResponse(
                 status_code=404,
                 content={"detail": "Not Found"},

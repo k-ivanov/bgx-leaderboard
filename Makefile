@@ -103,6 +103,14 @@ dev-backend: $(BACKEND)/$(VENV)/.installed-backend ## Start FastAPI (uvicorn --r
 	  . $(VENV)/bin/activate && \
 	  PORT=$(PORT) HOST=$(HOST) uvicorn app.main:app --host $(HOST) --port $(PORT) --reload
 
+.PHONY: dev-admin
+dev-admin: $(BACKEND)/$(VENV)/.installed-backend ## Start FastAPI with ADMIN_PASSWORD set (admin panel enabled at /admin)
+	@cd $(BACKEND) && \
+	  . $(VENV)/bin/activate && \
+	  PORT=$(PORT) HOST=$(HOST) ADMIN_PASSWORD=$${ADMIN_PASSWORD:-letmein} \
+	  uvicorn app.main:app --host $(HOST) --port $(PORT) --reload
+	@printf "\n$(C_GOLD)→$(C_RESET) admin available at http://$(HOST):$(PORT)/admin (user=admin, pass=$${ADMIN_PASSWORD:-letmein})\n"
+
 .PHONY: dev-frontend
 dev-frontend: $(FRONTEND)/node_modules ## Start Astro dev server on :4321 (proxies /api to backend)
 	@cd $(FRONTEND) && npm run dev -- --port $(FRONTEND_PORT)

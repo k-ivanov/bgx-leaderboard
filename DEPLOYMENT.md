@@ -131,6 +131,9 @@ npm run generate:api-types    # hits http://localhost:5001/api/openapi.json
 | `DATABASE_URL` | yes | — | Postgres URL. `postgres://` prefixes are normalized automatically. |
 | `DEFAULT_SEASON_YEAR` | no | `2026` | Fallback used when no season is marked `is_current`. |
 | `STATS_PASSWORD` | no (dev) / yes (prod) | empty | Enables HTTP Basic on `/api/stats`. Empty string disables auth. |
+| `ADMIN_USERNAME` | no | `admin` | Username for the `/admin` panel login form. |
+| `ADMIN_PASSWORD` | no (dev) / yes (prod) | empty | Enables the SQLAdmin panel at `/admin`. Empty string keeps admin **disabled** — any login attempt returns 400. Set a strong value in Railway secrets. |
+| `ADMIN_SESSION_SECRET` | no (dev) / **yes (prod)** | dev-only fallback | Signing key for the admin session cookie. **Must override in production.** |
 | `PORT` | no | `5001` | HTTP port. Railway sets this for you. |
 | `HOST` | no | `0.0.0.0` | Bind address. |
 | `FRONTEND_DIST` | no | `/app/frontend_dist` | Override where FastAPI finds the Astro build output. |

@@ -68,7 +68,9 @@ RUN pip install --no-cache-dir --upgrade pip \
         "alembic>=1.13" \
         "python-dotenv>=1.0" \
         "slowapi>=0.1.9" \
-        "pandas>=2.0.0"
+        "pandas>=2.0.0" \
+        "sqladmin>=0.19" \
+        "itsdangerous>=2.2"
 
 # Backend source
 COPY backend/alembic.ini ./alembic.ini
