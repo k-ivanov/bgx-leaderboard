@@ -43,8 +43,9 @@ case $choice in
         echo "Press Ctrl+C to stop the server"
         echo ""
         
-        # Start server
-        source venv/bin/activate 2>/dev/null || python3 -m venv venv && source venv/bin/activate
+        # Start server (Python source lives under backend/ after the Phase 0 repo reshape)
+        cd backend
+        source .venv/bin/activate 2>/dev/null || python3 -m venv .venv && source .venv/bin/activate
         pip install -q -r requirements.txt
         HOST=0.0.0.0 PORT=5001 python main.py
         ;;
