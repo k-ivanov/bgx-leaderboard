@@ -38,6 +38,9 @@ class Season(Base):
     events: Mapped[list["Event"]] = relationship(back_populates="season", cascade="all, delete-orphan")
     riders: Mapped[list["Rider"]] = relationship(back_populates="season", cascade="all, delete-orphan")
 
+    def __str__(self) -> str:
+        return str(self.year)
+
 
 class Category(Base):
     __tablename__ = "category"
@@ -54,6 +57,9 @@ class Category(Base):
     __table_args__ = (
         UniqueConstraint("season_id", "code", name="uq_category_season_code"),
     )
+
+    def __str__(self) -> str:
+        return f"{self.display_name} ({self.season.year})"
 
 
 class Event(Base):
@@ -75,6 +81,9 @@ class Event(Base):
         UniqueConstraint("season_id", "slug", name="uq_event_season_slug"),
     )
 
+    def __str__(self) -> str:
+        return f"{self.name} ({self.season.year})"
+
 
 class Rider(Base):
     __tablename__ = "rider"
@@ -95,6 +104,9 @@ class Rider(Base):
     __table_args__ = (
         UniqueConstraint("category_id", "race_number", name="uq_rider_category_race_number"),
     )
+
+    def __str__(self) -> str:
+        return f"#{self.race_number} {self.first_name} {self.last_name}"
 
 
 class EventResult(Base):
@@ -122,6 +134,10 @@ class EventResult(Base):
         Index("ix_result_event", "event_id"),
         Index("ix_result_rider", "rider_id"),
     )
+
+    def __str__(self) -> str:
+        pos = f"P{self.position}" if self.position else "—"
+        return f"{pos} {self.rider} @ {self.event}"
 
 
 class Visit(Base):
