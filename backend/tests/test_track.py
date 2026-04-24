@@ -23,6 +23,8 @@ from app.main import app
 from src.db import get_session
 from src.db.models import Visit
 
+pytestmark = pytest.mark.usefixtures("seeded_db")
+
 client = TestClient(app)
 
 

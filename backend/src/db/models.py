@@ -126,9 +126,16 @@ class EventResult(Base):
     time_ms: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     start_time_ms: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     gps_penalty_ms: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    # Separate checkpoint penalty time (ms); distinct from cp_count (kept for
+    # forward compat — was the count of CPs hit; the new data source publishes
+    # penalty time directly).
+    cp_penalty_ms: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     cp_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     laps: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     gap_ms: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    # FIN / DNF / DNS / DSQ. Nullable for legacy rows where status wasn't
+    # recorded. UI can still infer a final state from position==None.
+    status: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     event: Mapped[Event] = relationship(back_populates="results")

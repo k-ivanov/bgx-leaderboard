@@ -1,11 +1,12 @@
 """Contract tests for the JSON API (eng-review N5).
 
 Exercises each endpoint with:
-  - a positive path against the 2025-seeded DB
+  - a positive path against the DB seeded from ``seed_data/``
   - a negative path (404, bad category, bad slug)
   - disambiguation when multiple riders share a race number
 
-The 2025 season is seeded by ``conftest.py`` (session-scoped, autouse).
+The DB is seeded once per session by the ``seeded_db`` fixture; this module
+opts in via ``pytestmark``.
 """
 
 import pytest
@@ -16,6 +17,8 @@ from app.main import app
 from app.slug import rider_slug
 from src.db import get_session
 from src.db.models import Category, Rider, Season
+
+pytestmark = pytest.mark.usefixtures("seeded_db")
 
 client = TestClient(app)
 
