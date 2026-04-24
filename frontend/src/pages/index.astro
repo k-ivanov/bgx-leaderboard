@@ -1,11 +1,128 @@
 ---
-// Root landing — redirect to the current season's default leaderboard.
-import { api } from '~/lib/api';
+// Landing page — welcome + unofficial disclaimer + season picker.
+// No automatic redirect; users pick a season consciously.
 
-const seasons = await api.listSeasons();
-const current = seasons.seasons.find(s => s.is_current) ?? seasons.seasons[0];
-return Astro.redirect(
-  current ? `/${current.year}/expert` : '/2026/expert',
-  302,
-);
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+import type { SeasonRef } from '~/lib/api.types';
+
+// Fetch all seasons + summary data at build time so we can render season
+// cards with rider/race counts. Falls back to empty state if the API
+// isn't reachable during build (dev convenience).
+let seasons: SeasonRef[] = [];
+const perSeason: Record<number, { riders: number; races: number; firstCategory: string | null }> = {};
+
+try {
+  const out = await api.listSeasons();
+  seasons = [...out.seasons].sort((a, b) => b.year - a.year);
+  for (const s of seasons) {
+    try {
+      const detail = await api.getSeason(s.year);
+      const firstCategory = detail.categories[0]?.code ?? null;
+      // Rough rider count: sum the leaderboard rows for every category. For
+      // speed, use the first category's size as an approximation — most
+      // riders show up there. If that's not enough, we can wire an API
+      // endpoint later.
+      let riders = 0;
+      if (firstCategory) {
+        try {
+          // Instead of firing 7 requests per season, pull the first category
+          // only and use it as a rough "active rider" signal.
+          const lb = await api.getLeaderboard(s.year, firstCategory);
+          riders = lb.rows.length;
+        } catch { /* ignore */ }
+      }
+      perSeason[s.year] = {
+        riders,
+        races: detail.events.length,
+        firstCategory,
+      };
+    } catch {
+      perSeason[s.year] = { riders: 0, races: 0, firstCategory: null };
+    }
+  }
+} catch {
+  seasons = [];
+}
+
+const current = seasons.find(s => s.is_current);
+const headNavYear = current?.year ?? (seasons[0]?.year ?? new Date().getFullYear());
+const allYears = seasons.map(s => s.year);
+
+const title = `${copy.seo.brand} · ${copy.home.h1}`;
+const description =
+  copy.home.lead.length > 155 ? copy.home.lead.slice(0, 155) + '…' : copy.home.lead;
 ---
+<BaseLayout
+  title={title}
+  description={description}
+  year={headNavYear}
+  activeYear={headNavYear}
+  allYears={allYears}
+  currentNav="none"
+>
+  <section class="mx-auto max-w-3xl py-8 md:py-12">
+    <h1 class="text-3xl md:text-5xl font-extrabold tracking-[-0.02em]">
+      {copy.home.h1}
+    </h1>
+    <p class="mt-5 text-[16px] md:text-[17px] leading-relaxed text-fg-muted">
+      {copy.home.lead}
+    </p>
+
+    <h2 class="mt-10 text-sm font-semibold uppercase tracking-[0.08em] text-fg-faint">
+      {copy.home.whatYoullFindHeading}
+    </h2>
+    <ul class="mt-3 space-y-2 text-[15px] leading-relaxed text-fg">
+      {copy.home.bullets.map(b => (
+        <li class="flex gap-3">
+          <span class="mt-[9px] inline-block h-1.5 w-1.5 flex-none rounded-full bg-accent"></span>
+          <span>{b}</span>
+        </li>
+      ))}
+    </ul>
+
+    <p class="mt-8 text-[15px] text-fg-muted">{copy.home.closing}</p>
+  </section>
+
+  {seasons.length > 0 && (
+    <section class="mx-auto max-w-3xl pb-12">
+      <h2 class="mb-4 text-lg font-bold tracking-[-0.01em]">
+        {copy.home.seasonsHeading}
+      </h2>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+        {seasons.map(s => {
+          const info = perSeason[s.year] ?? { riders: 0, races: 0, firstCategory: null };
+          const landingCategory = info.firstCategory ?? 'expert';
+          const href = `/${s.year}/${landingCategory}`;
+          return (
+            <a
+              href={href}
+              class:list={[
+                'group block rounded-xl border p-5 transition-colors',
+                s.is_current
+                  ? 'border-accent bg-accent-soft hover:border-accent-strong'
+                  : 'border-border bg-bg-elevated hover:border-accent',
+              ]}
+            >
+              <div class="flex items-baseline justify-between">
+                <span class="text-3xl font-extrabold tracking-tight">{s.year}</span>
+                {s.is_current && (
+                  <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-accent-strong">
+                    {copy.home.seasonCurrentBadge}
+                  </span>
+                )}
+              </div>
+              <div class="mt-2 text-xs text-fg-muted">
+                {copy.home.seasonRidersFmt(info.riders)} · {copy.home.seasonRacesFmt(info.races)}
+              </div>
+              <div class="mt-4 text-[13px] font-semibold text-accent group-hover:text-accent-strong">
+                {copy.home.seasonCtaFmt(landingCategory)}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </section>
+  )}
+</BaseLayout>
