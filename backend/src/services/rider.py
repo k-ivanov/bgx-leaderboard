@@ -90,27 +90,49 @@ def get_rider_profile(
     team = next((r.team for r in riders if r.team), None)
     bike = next((r.bike for r in riders if r.bike), None)
 
-    results: list[RiderResult] = []
+    # Collapse multi-day rows into one entry per (event, category) — matches
+    # how the leaderboard shows race totals. Points sum; position is the best
+    # day's position; time is the combined (sum) time across days.
+    grouped: dict[tuple[int, int], list] = {}
     for rider in riders:
         for er in rider.results:
-            points = float(er.points) if er.points is not None else None
-            # 2025 aggregate data doesn't store raw per-event positions;
-            # derive from points (BGX table) so the UI shows a ranking.
-            position = er.position
-            if position is None and points is not None and points > 0:
-                position = position_from_points(points)
-            results.append(
-                RiderResult(
-                    event=er.event,
-                    category=rider.category,
-                    position=position,
-                    points=points,
-                    time_ms=er.time_ms,
-                    gap_ms=er.gap_ms,
-                    gps_penalty_ms=er.gps_penalty_ms,
-                    laps=er.laps,
-                )
+            grouped.setdefault((er.event.id, rider.category.id), []).append((rider, er))
+
+    results: list[RiderResult] = []
+    for (_event_id, _category_id), day_rows in grouped.items():
+        rider_first, first_er = day_rows[0]
+        category = rider_first.category
+        event = first_er.event
+
+        points_list = [float(er.points) for _, er in day_rows if er.points is not None]
+        points = sum(points_list) if points_list else None
+
+        explicit_positions = [er.position for _, er in day_rows if er.position is not None]
+        if explicit_positions:
+            position = min(explicit_positions)
+        elif points is not None and points > 0:
+            position = position_from_points(points)
+        else:
+            position = None
+
+        # Aggregate timing across days. Ignore None values; if every day is
+        # None, the result is None.
+        def _sum(field: str) -> int | None:
+            vals = [getattr(er, field) for _, er in day_rows if getattr(er, field) is not None]
+            return sum(vals) if vals else None
+
+        results.append(
+            RiderResult(
+                event=event,
+                category=category,
+                position=position,
+                points=points,
+                time_ms=_sum("time_ms"),
+                gap_ms=_sum("gap_ms"),
+                gps_penalty_ms=_sum("gps_penalty_ms"),
+                laps=_sum("laps"),
             )
+        )
     results.sort(key=lambda r: (r.event.sort_order, r.event.id, r.category.sort_order))
 
     total_events = session.execute(

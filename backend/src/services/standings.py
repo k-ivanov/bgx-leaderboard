@@ -98,14 +98,31 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
     rows: list[StandingsRow] = []
 
     for rider in riders:
-        entries: dict[str, RiderEventEntry] = {}
+        # First group raw results by event, then collapse the per-day rows into
+        # a single championship entry. Points sum across days; position is the
+        # best (lowest) day's position.
+        per_event: dict[int, list] = {}
         for er in rider.results:
-            ev = event_by_id.get(er.event_id)
+            per_event.setdefault(er.event_id, []).append(er)
+
+        entries: dict[str, RiderEventEntry] = {}
+        for event_id, day_rows in per_event.items():
+            ev = event_by_id.get(event_id)
             if ev is None:
                 continue
-            points = float(er.points or 0)
-            position = er.position if er.position is not None else position_from_points(points)
-            entries[ev.slug] = RiderEventEntry(event=ev, points=points, position=position)
+            total_event_points = sum(float(r.points or 0) for r in day_rows)
+            # Best (lowest) position across the days. Fall back to the
+            # points-derived position if no day has an explicit position.
+            explicit_positions = [r.position for r in day_rows if r.position is not None]
+            if explicit_positions:
+                best_event_position = min(explicit_positions)
+            else:
+                best_event_position = position_from_points(total_event_points)
+            entries[ev.slug] = RiderEventEntry(
+                event=ev,
+                points=total_event_points,
+                position=best_event_position,
+            )
 
         races_participated = len(entries)
         if races_participated == 0:
