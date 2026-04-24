@@ -54,10 +54,14 @@ const dateLong = formatDateLong(race.event_date);
 const rows = results.rows;
 const winner = rows.find(r => r.position === 1);
 
-const title = `${race.name} Results · ${catName} · ${yearNum} · BGX Hard Enduro`;
-const description = winner
-  ? `${catName} results from Round ${round} ${race.name}, BGX Hard Enduro ${yearNum}. Winner: ${winner.rider.first_name} ${winner.rider.last_name}.`
-  : `${catName} results from Round ${round} ${race.name}, BGX Hard Enduro ${yearNum}.`;
+const title = copy.seo.raceResultsTitle(race.name, catName, yearNum);
+const description = copy.seo.raceResultsDescription(
+  catName,
+  round,
+  race.name,
+  yearNum,
+  winner ? `${winner.rider.first_name} ${winner.rider.last_name}` : null,
+);
 
 // Prev/next round navigation
 const raceIdx = races.events.findIndex(e => e.slug === eventSlug);

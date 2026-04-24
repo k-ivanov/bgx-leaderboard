@@ -26,8 +26,13 @@ const now = new Date();
 const completed = events.filter(e => isPast(e.event_date, now)).length;
 const upcoming = events.length - completed;
 
-const title = `${yearNum} Races · BGX Hard Enduro Championship`;
-const description = `${yearNum} race calendar for the BGX Hard Enduro Championship. ${events.length} races${events.length > 0 ? ` from ${events[0].name} to ${events[events.length - 1].name}` : ''}.`;
+const title = copy.seo.racesTitle(yearNum);
+const description = copy.seo.racesDescription(
+  yearNum,
+  events.length,
+  events.length > 0 ? events[0].name : null,
+  events.length > 0 ? events[events.length - 1].name : null,
+);
 
 const jsonLd = {
   '@context': 'https://schema.org',
