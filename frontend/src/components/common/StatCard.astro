@@ -1,0 +1,32 @@
+---
+interface Props {
+  label: string;
+  value: string | number;
+  sublabel?: string;
+  emphasis?: boolean;
+  colSpan?: 1 | 2;
+}
+
+const { label, value, sublabel, emphasis = false, colSpan = 1 } = Astro.props;
+---
+<div
+  class:list={[
+    'rounded-[10px] border border-border bg-bg-elevated px-4 py-4',
+    colSpan === 2 && 'sm:col-span-2',
+  ]}
+>
+  <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-faint">
+    {label}
+  </div>
+  <div
+    class:list={[
+      'mt-1.5 tracking-tight',
+      emphasis ? 'text-3xl font-extrabold' : 'text-2xl font-bold',
+    ]}
+  >
+    {value}
+  </div>
+  {sublabel && (
+    <div class="mt-1 text-xs text-fg-muted">{sublabel}</div>
+  )}
+</div>

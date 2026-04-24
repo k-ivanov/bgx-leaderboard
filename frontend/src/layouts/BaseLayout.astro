@@ -1,0 +1,96 @@
+---
+// BaseLayout.astro — the site shell used by every page.
+//
+// Responsibilities:
+//   - <html>/<head>/<body> boilerplate
+//   - Self-hosted variable fonts (Inter + JetBrains Mono)
+//   - Global stylesheet with token system + print styles
+//   - Per-page SEO head tags (title, meta desc, canonical, OG, Twitter, JSON-LD)
+//   - Sticky top nav (brand + year switcher + section links)
+//   - Footer
+//
+// Takes: page-specific title/description/canonical, year context for the
+// nav, currentNav selector, and an optional JSON-LD structured-data object.
+
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+import '~/styles/global.css';
+
+import { copy } from '~/lib/copy';
+import Nav from '~/components/layout/Nav.astro';
+import Footer from '~/components/layout/Footer.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  ogImage?: string;
+  noindex?: boolean;
+  year: number;
+  activeYear: number;
+  allYears: number[];
+  currentNav: 'leaderboard' | 'races' | 'stats' | 'rider' | 'none';
+  jsonLd?: object;
+}
+
+const {
+  title,
+  description,
+  canonical,
+  ogImage = '/og-default.png',
+  noindex = false,
+  year,
+  activeYear,
+  allYears,
+  currentNav,
+  jsonLd,
+} = Astro.props;
+
+const site = Astro.site?.toString().replace(/\/+$/, '') ?? '';
+const pathname = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const canonicalUrl = canonical ?? (site ? `${site}${pathname}` : pathname);
+const ogImageUrl = ogImage.startsWith('http')
+  ? ogImage
+  : `${site}${ogImage.startsWith('/') ? ogImage : `/${ogImage}`}`;
+
+const appVersion = '0.2.0';
+---
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BGX Hard Enduro Championship" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    {jsonLd && (
+      <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    )}
+  </head>
+  <body>
+    <Nav
+      year={year}
+      activeYear={activeYear}
+      allYears={allYears}
+      currentNav={currentNav}
+    />
+    <main class="max-w-container mx-auto px-4 py-5 md:px-6 md:py-8">
+      <slot />
+    </main>
+    <Footer appVersion={appVersion} />
+  </body>
+</html>

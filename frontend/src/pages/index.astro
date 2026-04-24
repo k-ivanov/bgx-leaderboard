@@ -1,0 +1,11 @@
+---
+// Root landing — redirect to the current season's default leaderboard.
+import { api } from '~/lib/api';
+
+const seasons = await api.listSeasons();
+const current = seasons.seasons.find(s => s.is_current) ?? seasons.seasons[0];
+return Astro.redirect(
+  current ? `/${current.year}/expert` : '/2026/expert',
+  302,
+);
+---

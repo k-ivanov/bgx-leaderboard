@@ -1,0 +1,62 @@
+---
+// Position badge — motorsport identity guardrail (design-review §6).
+// Podium metallics (gold/silver/bronze) apply ONLY to 1st/2nd/3rd.
+// Position text is always readable without color (accessibility).
+
+interface Props {
+  position: number | null | undefined;
+  dnf?: boolean;
+  dns?: boolean;
+}
+
+const { position: rawPosition, dnf = false, dns = false } = Astro.props;
+const position: number | null = rawPosition ?? null;
+
+let label: string;
+let tone: 'gold' | 'silver' | 'bronze' | 'muted' | 'dnf';
+
+if (dnf) {
+  label = 'DNF';
+  tone = 'dnf';
+} else if (dns) {
+  label = 'DNS';
+  tone = 'dnf';
+} else if (position === null) {
+  label = '—';
+  tone = 'muted';
+} else if (position === 1) {
+  label = '1';
+  tone = 'gold';
+} else if (position === 2) {
+  label = '2';
+  tone = 'silver';
+} else if (position === 3) {
+  label = '3';
+  tone = 'bronze';
+} else {
+  label = String(position);
+  tone = 'muted';
+}
+
+const toneClass: Record<typeof tone, string> = {
+  gold:   'bg-[rgba(251,191,36,0.14)] text-podium-gold pos-1',
+  silver: 'bg-[rgba(203,213,225,0.12)] text-podium-silver pos-2',
+  bronze: 'bg-[rgba(249,115,22,0.14)] text-podium-bronze pos-3',
+  muted:  'bg-bg-muted text-fg-muted',
+  dnf:    'text-fg-faint text-[11px] pos-dnf',
+};
+
+const aria =
+  dnf ? 'Did not finish'
+  : dns ? 'Did not start'
+  : position === null ? 'No result'
+  : `${label}${position === 1 ? 'st' : position === 2 ? 'nd' : position === 3 ? 'rd' : 'th'} place`;
+---
+<span
+  class:list={[
+    'inline-flex items-center justify-center rounded-md font-bold text-[13px]',
+    tone === 'dnf' ? 'h-6 px-2.5' : 'w-[30px] h-[30px]',
+    toneClass[tone],
+  ]}
+  aria-label={aria}
+>{label}</span>

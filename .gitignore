@@ -37,3 +37,8 @@ build/
 
 # gstack
 .gstack/
+
+# Astro / frontend
+frontend/.astro/
+frontend/dist/
+frontend/node_modules/

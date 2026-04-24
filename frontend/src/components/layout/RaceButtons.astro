@@ -1,0 +1,37 @@
+---
+import type { EventRef } from '~/lib/api.types';
+
+interface Props {
+  year: number;
+  events: EventRef[];
+  activeCategoryCode: string;
+  activeEventSlug?: string;
+}
+
+const { year, events, activeCategoryCode, activeEventSlug } = Astro.props;
+---
+<div class="event-buttons -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 md:overflow-visible md:flex-wrap">
+  {events.map((ev, idx) => {
+    const active = ev.slug === activeEventSlug;
+    const href = `/${year}/${activeCategoryCode}/${ev.slug}`;
+    return (
+      <a
+        href={href}
+        class:list={[
+          'flex-none inline-flex items-center gap-2 rounded-md border px-3.5 py-2 text-[13px] font-semibold transition-colors',
+          active
+            ? 'bg-accent-soft border-accent text-accent-strong'
+            : 'bg-bg-elevated border-border text-fg-muted hover:border-accent hover:text-fg',
+        ]}
+      >
+        <span
+          class:list={[
+            'mono text-[11px] tracking-[0.04em]',
+            active ? 'text-accent' : 'text-fg-faint',
+          ]}
+        >{(idx + 1).toString().padStart(2, '0')}</span>
+        <span class="-tracking-[0.005em]">{ev.name}</span>
+      </a>
+    );
+  })}
+</div>
