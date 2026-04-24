@@ -1,14 +1,14 @@
 #!/bin/bash
-# Local dev entrypoint. Run from the backend/ directory.
+# Local dev entrypoint for the FastAPI backend.
+# Run from the backend/ directory (or anywhere — this script self-locates).
 # For production, see the root-level Dockerfile.
 
 set -euo pipefail
 
-# Allow running from repo root as well: `./backend/start.sh`.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "Starting BGX Hard Enduro Dashboard (local dev)..."
+echo "Starting BGX Hard Enduro Dashboard backend (local dev)..."
 
 if [ ! -d ".venv" ]; then
     echo "Creating virtualenv..."
@@ -18,8 +18,8 @@ fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-echo "Installing dependencies..."
-pip install -q -r requirements.txt
+echo "Installing dependencies from pyproject.toml..."
+pip install -q -e .
 
 if [ ! -f ".env" ]; then
     echo ".env not found in backend/ — copy .env.example to .env and set DATABASE_URL first."
@@ -30,5 +30,8 @@ fi
 echo "Applying migrations..."
 alembic upgrade head
 
-echo "Starting server on http://localhost:${PORT:-5001}"
-python main.py
+echo "Starting uvicorn on http://${HOST:-0.0.0.0}:${PORT:-5001}"
+exec uvicorn app.main:app \
+    --host "${HOST:-0.0.0.0}" \
+    --port "${PORT:-5001}" \
+    --reload
