@@ -1,5 +1,9 @@
 /* BGX global stylesheet.
  * Tokens mirror design-review.md §3.1–§3.4. Any change here is a design-system change.
+ *
+ * Color tokens are CSS custom properties so the same Tailwind utility classes
+ * (bg-bg-base, text-fg, border-border, …) produce both light and dark themes.
+ * The variables flip on `<html class="dark">`.
  */
 
 /* Self-hosted variable fonts — bundled by Astro via @fontsource-variable.
@@ -10,12 +14,54 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light theme — default when `<html>` has no class (or explicit .light).
+   * Kept deliberately close to the dark palette's semantic roles.
+   */
   :root {
     --bgx-font-feature-settings: 'cv11', 'ss01';
+
+    --color-bg-base: #f8fafc;
+    --color-bg-elevated: #ffffff;
+    --color-bg-muted: #f1f5f9;
+    --color-border: #e2e8f0;
+    --color-border-muted: #f1f5f9;
+    --color-fg: #0b0d10;
+    --color-fg-muted: #475569;
+    --color-fg-faint: #64748b;          /* AA on white */
+    --color-accent: #f59e0b;             /* gold — brand, same on both themes */
+    --color-accent-strong: #b45309;      /* amber-700, AA text on white (~5.4:1) */
+    --color-accent-soft: rgba(245, 158, 11, 0.10);
+    --color-podium-gold: #ca8a04;        /* amber-600 — readable on light surface */
+    --color-podium-silver: #64748b;      /* slate-500 — readable on light */
+    --color-podium-bronze: #b45309;      /* amber-700 — readable on light */
+    --color-danger: #dc2626;
+  }
+
+  /* Dark theme — original motorsport identity. */
+  html.dark {
+    --color-bg-base: #0b0d10;
+    --color-bg-elevated: #14171c;
+    --color-bg-muted: #1a1f26;
+    --color-border: #242932;
+    --color-border-muted: #1d2128;
+    --color-fg: #e7ebef;
+    --color-fg-muted: #8891a0;
+    --color-fg-faint: #5a6472;
+    --color-accent: #f59e0b;
+    --color-accent-strong: #fbbf24;
+    --color-accent-soft: rgba(245, 158, 11, 0.12);
+    --color-podium-gold: #fbbf24;
+    --color-podium-silver: #cbd5e1;
+    --color-podium-bronze: #f97316;
+    --color-danger: #ef4444;
   }
 
   html {
-    /* Dark mode always-on (design-review §3.5 stance). */
+    /* Let browser UI (scrollbars, form controls) match the active theme. */
+    color-scheme: light;
+  }
+
+  html.dark {
     color-scheme: dark;
   }
 
@@ -28,6 +74,7 @@
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
     padding: 0;
+    transition: background-color 150ms ease, color 150ms ease;
   }
 
   *, *::before, *::after {

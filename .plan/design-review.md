@@ -34,7 +34,10 @@ What's still outstanding: (a) Cyrillic rendering test on real rider names, (b) f
 - **Existing design leverage:** `src/ui/styles.py` (180 lines CSS, 8.6 KB) is the current ground truth for tokens. Fully captured in §3 below.
 - **Existing layout leverage:** `src/ui/layout.py` (75 lines) defines the nav structure and shell. Pattern preserved in §4.
 - **Existing component leverage:** `src/ui/standings.py`, `events_page.py`, `event_detail.py`, `rider_detail.py`, `common.py` define current view semantics (tables, badges, pills). Ported 1:1 to Astro components in §8.
-- **Dark-mode-only stance:** yes. No light-mode support in scope. Future consideration only.
+- **Dark-mode stance:** dark is the default + the canonical motorsport identity.
+  A user-controlled **light theme toggle** ships in the nav (cookie-persisted, 1-year
+  expiry). Tokens are CSS variables that flip on `<html class="dark">`. The light
+  palette is contrast-safe (WCAG AA) but visual identity is strongest in dark mode.
 - **Languages supported:** English only for UI chrome. Rider names may contain **Cyrillic** (Bulgarian data source uses native spelling) — typography must handle Cyrillic glyphs correctly. Inter supports Cyrillic; JetBrains Mono supports Cyrillic. Verified.
 
 ---
