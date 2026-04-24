@@ -14,6 +14,8 @@ import importlib
 import pytest
 from fastapi.testclient import TestClient
 
+pytestmark = pytest.mark.usefixtures("seeded_db")
+
 
 # ---------------------------------------------------------------------------
 # Helpers

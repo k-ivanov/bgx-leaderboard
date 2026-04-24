@@ -156,13 +156,12 @@ seed: seed-all ## Clean DB + re-import every year folder under scripts/seed_data
 seed-all: migrate ## Wipe championship data + import every year folder (keeps visits)
 	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all
 
-.PHONY: seed-2025
-seed-2025: migrate ## Import ONLY the 2025 aggregate CSVs (add-only; for partial reseed)
-	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all --year 2025 --no-wipe
-
-.PHONY: seed-2026
-seed-2026: migrate ## Import ONLY the 2026 per-event CSVs (add-only; for partial reseed)
-	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all --year 2026 --no-wipe
+.PHONY: seed-year
+seed-year: migrate ## Import ONLY one year's CSVs (add-only). Usage: make seed-year YEAR=2024
+	@if [ -z "$(YEAR)" ]; then \
+	  printf "Usage: make seed-year YEAR=2024  (or 2025, 2026, …)\n"; exit 2; \
+	fi
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all --year $(YEAR) --no-wipe
 
 .PHONY: import-event
 import-event: ## Import one (race, category) CSV. Usage: make import-event FILE=... CAT=expert CAT_NAME="Expert" EVENT=karnare EVENT_NAME="Kyrnare" DATE=2026-04-18 YEAR=2026
