@@ -42,8 +42,10 @@ const allYears = seasonsOut.seasons.map(s => s.year);
 // The slug may contain Cyrillic characters — HTTP Location headers must be
 // ASCII (ByteString), so percent-encode the slug in the redirect target.
 if (disambig.candidates.length === 1) {
-  const onlySlug = encodeURIComponent(disambig.candidates[0].rider.slug);
-  return Astro.redirect(`/${yearNum}/r/${raceNum}/${onlySlug}`, 302);
+  return Astro.redirect(
+    `/${yearNum}/r/${raceNum}/${encodeURIComponent(disambig.candidates[0].rider.slug)}`,
+    302,
+  );
 }
 
 const title = `Rider #${raceNum} · ${yearNum} · BGX Hard Enduro`;

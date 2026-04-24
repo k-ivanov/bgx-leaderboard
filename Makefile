@@ -18,7 +18,7 @@ PORT            ?= 5001
 HOST            ?= 0.0.0.0
 FRONTEND_PORT   ?= 4321
 IMAGE_TAG       ?= bgx-dashboard:latest
-API_URL         ?= http://localhost:$(PORT)
+API_URL         ?= http://127.0.0.1:$(PORT)
 COMPOSE         ?= docker compose
 
 # Use an absolute path so cd'ing around doesn't confuse us.
@@ -62,10 +62,12 @@ help: ## Show this help
 # ============================================================================
 
 .PHONY: install
-install: $(VENV)/.installed-backend $(FRONTEND)/node_modules ## Install backend + frontend deps (one-time setup)
+install: $(BACKEND)/$(VENV)/.installed-backend $(FRONTEND)/node_modules ## Install backend + frontend deps (one-time setup)
 	@printf "$(C_GOLD)✓$(C_RESET) backend + frontend deps installed\n"
 
-$(VENV)/.installed-backend: $(BACKEND)/pyproject.toml
+# Stamp file lives *inside* the venv so `make clean-venv` (which nukes the
+# venv) also removes the stamp, forcing a re-install on the next `make install`.
+$(BACKEND)/$(VENV)/.installed-backend: $(BACKEND)/pyproject.toml
 	@printf "$(C_GOLD)→$(C_RESET) creating venv and installing backend deps…\n"
 	@cd $(BACKEND) && $(PYTHON) -m venv $(VENV) && \
 	  $(VENV)/bin/pip install -q --upgrade pip && \
@@ -81,19 +83,22 @@ $(FRONTEND)/node_modules: $(FRONTEND)/package.json $(FRONTEND)/package-lock.json
 dev: ## Run backend + frontend in the foreground (Ctrl-C stops both)
 	@printf "$(C_GOLD)→$(C_RESET) starting dev stack. Ctrl-C to stop.\n"
 	@$(MAKE) db-up
-	@trap '$(MAKE) dev-stop' INT TERM EXIT; \
-	  ($(MAKE) --no-print-directory dev-backend &) && \
-	  printf "$(C_GOLD)→$(C_RESET) waiting for backend :$(PORT)…\n" && \
+	@# Run both targets as direct children of this shell so `wait` can see
+	@# them and signals propagate. The (... &) subshell pattern disowns the
+	@# backgrounded process and makes `wait` exit immediately.
+	@trap 'kill $$(jobs -p) 2>/dev/null; $(MAKE) --no-print-directory dev-stop' INT TERM EXIT; \
+	  $(MAKE) --no-print-directory dev-backend & \
+	  printf "$(C_GOLD)→$(C_RESET) waiting for backend :$(PORT)…\n"; \
 	  for i in $$(seq 1 30); do \
 	    if curl -fsS http://127.0.0.1:$(PORT)/health >/dev/null 2>&1; then \
 	      printf "$(C_GOLD)✓$(C_RESET) backend ready after %ss\n" $$i; break; \
 	    fi; sleep 1; \
-	  done && \
-	  ($(MAKE) --no-print-directory dev-frontend &) && \
+	  done; \
+	  $(MAKE) --no-print-directory dev-frontend & \
 	  wait
 
 .PHONY: dev-backend
-dev-backend: $(VENV)/.installed-backend ## Start FastAPI (uvicorn --reload) on :5001
+dev-backend: $(BACKEND)/$(VENV)/.installed-backend ## Start FastAPI (uvicorn --reload) on :5001
 	@cd $(BACKEND) && \
 	  . $(VENV)/bin/activate && \
 	  PORT=$(PORT) HOST=$(HOST) uvicorn app.main:app --host $(HOST) --port $(PORT) --reload
@@ -138,7 +143,7 @@ db-nuke: ## ⚠️ Drop postgres volume + recreate (destroys all data)
 	@$(MAKE) db-up
 
 .PHONY: migrate
-migrate: $(VENV)/.installed-backend db-up ## Apply all pending alembic migrations
+migrate: $(BACKEND)/$(VENV)/.installed-backend db-up ## Apply all pending alembic migrations
 	@cd $(BACKEND) && . $(VENV)/bin/activate && alembic upgrade head
 
 .PHONY: seed
@@ -152,8 +157,8 @@ seed-2025: migrate ## Import the 2025 aggregate CSVs (idempotent — wipes + reb
 seed-2026-karnare: migrate ## Import the 2026 Kyrnare event for every category (idempotent)
 	@cd $(BACKEND) && . $(VENV)/bin/activate && \
 	for cat_csv in scripts/seed_data/bgx-results-2026/karnare_2026_navigation_*.csv; do \
-	  cat=$$(basename "$$cat_csv" | sed -E 's/karnare_2026_navigation_([a-z_]+)\.csv/\1/; s/standart/standard/; s/seniors_40plus/seniors_40/; s/seniors_50plus/seniors_50/'); \
-	  name=$$(echo "$$cat" | sed -E 's/_/ /g; s/\b./\U&/g'); \
+	  cat=$$(basename "$$cat_csv" .csv | sed -E 's/^karnare_2026_navigation_//; s/standart/standard/; s/seniors_40plus/seniors_40/; s/seniors_50plus/seniors_50/'); \
+	  name=$$(echo "$$cat" | sed -E 's/_/ /g; s/\<./\U&/g'); \
 	  printf "  → %s\n" "$$cat"; \
 	  $(PYTHON) -m scripts.import_event \
 	    --file "$$cat_csv" \
@@ -186,12 +191,12 @@ db-reset: db-nuke migrate seed ## Nuke + recreate the DB and seed 2025
 # ============================================================================
 
 .PHONY: test
-test: $(VENV)/.installed-backend db-up ## Run the full backend pytest suite (64 tests)
+test: $(BACKEND)/$(VENV)/.installed-backend db-up ## Run the full backend pytest suite (64 tests)
 	@cd $(BACKEND) && . $(VENV)/bin/activate && \
 	  $(PYTHON) -m pytest -p no:cacheprovider -o "pythonpath=."
 
 .PHONY: test-fast
-test-fast: $(VENV)/.installed-backend ## Run only DB-free backend tests (no Postgres required)
+test-fast: $(BACKEND)/$(VENV)/.installed-backend ## Run only DB-free backend tests (no Postgres required)
 	@cd $(BACKEND) && . $(VENV)/bin/activate && \
 	  $(PYTHON) -m pytest --noconftest -p no:cacheprovider --override-ini="addopts=" \
 	    -o "pythonpath=." \
