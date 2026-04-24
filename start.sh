@@ -1,29 +1,29 @@
 #!/bin/bash
+# Local dev entrypoint. For production, see Dockerfile.
 
-# BGX Navigation Dashboard Startup Script
+set -euo pipefail
 
-echo "🏆 Starting BGX Navigation Championship Dashboard..."
-echo ""
+echo "Starting BGX Hard Enduro Dashboard (local dev)..."
 
-# Check if virtual environment exists
-if [ ! -d "venv" ]; then
-    echo "📦 Creating virtual environment..."
-    python -m venv venv
+if [ ! -d ".venv" ]; then
+    echo "Creating virtualenv..."
+    python3 -m venv .venv
 fi
 
-# Activate virtual environment
-echo "🔌 Activating virtual environment..."
-source venv/bin/activate
+# shellcheck disable=SC1091
+source .venv/bin/activate
 
-# Install dependencies
-echo "📚 Installing dependencies..."
+echo "Installing dependencies..."
 pip install -q -r requirements.txt
 
-# Start the server
-echo "🚀 Starting server on http://localhost:5001"
-echo ""
-echo "Press Ctrl+C to stop the server"
-echo ""
+if [ ! -f ".env" ]; then
+    echo ".env not found — copy .env.example to .env and set DATABASE_URL first."
+    echo "Quick local Postgres: docker compose up -d postgres"
+    exit 1
+fi
 
+echo "Applying migrations..."
+alembic upgrade head
+
+echo "Starting server on http://localhost:${PORT:-5001}"
 python main.py
-

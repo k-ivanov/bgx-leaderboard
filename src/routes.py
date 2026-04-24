@@ -1,422 +1,547 @@
-"""Route handlers for the BGX Navigation Dashboard."""
+"""Route handlers for the BGX dashboard (server-rendered via FastHTML)."""
 
 from datetime import datetime
-from fasthtml.common import *
-from .config import CATEGORIES, APP_VERSION
-from .database import track_visit, visits_table
-from .data_loader import load_category_data, get_race_columns
-from .ui_components import create_leaderboard_table, create_footer, get_styles
+
+from fasthtml.common import (
+    A,
+    Div,
+    H1,
+    P,
+    RedirectResponse,
+    Span,
+    Table,
+    Tbody,
+    Td,
+    Th,
+    Thead,
+    Tr,
+)
+from sqlalchemy import desc, func, select
+from sqlalchemy.orm import selectinload
+
+from .config import DEFAULT_SEASON_YEAR
+from .database import track_visit
+from .db import get_session
+from .db.models import Category, Event, EventResult, Rider, Season, Visit
+from .services.rider import get_rider_profile, riders_sharing_number
+from .services.standings import events_for_season, get_standings
+from .ui.common import empty_state, fmt_ms, position_badge, points_pill
+from .ui.event_detail import event_detail_table
+from .ui.events_page import events_list
+from .ui.layout import page
+from .ui.rider_detail import rider_disambiguation, rider_header, rider_results_table
+from .ui.standings import category_tabs, event_buttons, standings_table
 
 
 def setup_routes(app, rt):
-    """Set up all application routes."""
-    
     @rt("/health")
     def health():
-        """Health check endpoint for monitoring."""
+        from .config import APP_VERSION
         return {
             "status": "healthy",
             "service": "bgx-navigation-dashboard",
-            "version": APP_VERSION
+            "version": APP_VERSION,
         }
+
+    @rt("/")
+    def root():
+        with get_session() as session:
+            year = _pick_landing_year(session)
+        return RedirectResponse(f"/{year}/", status_code=302)
+
+    @rt("/{year:int}/")
+    def season_landing(year: int):
+        return _standings_page(year, category_code=None, request_user_agent_fn=None)
+
+    @rt("/{year:int}/events")
+    def events_page(year: int):
+        with get_session() as session:
+            season = _get_season(session, year)
+            if season is None:
+                return _not_found(year)
+            all_years = _all_years(session)
+            events = events_for_season(session, season)
+
+        return page(
+            title=f"Events · {year} · BGX",
+            year=year,
+            active_year=year,
+            all_years=all_years,
+            current_nav="events",
+            body_children=[
+                Div(
+                    H1(f"{year} Events"),
+                    P("The full season calendar."),
+                    cls="page-header",
+                ),
+                events_list(year=year, events=events),
+            ],
+        )
+
+    @rt("/{year:int}/events/{event_slug}")
+    def event_overview(year: int, event_slug: str):
+        with get_session() as session:
+            season = _get_season(session, year)
+            if season is None:
+                return _not_found(year)
+            all_years = _all_years(session)
+            event = session.execute(
+                select(Event).where(Event.season_id == season.id, Event.slug == event_slug)
+            ).scalar_one_or_none()
+            if event is None:
+                return _not_found(year)
+            categories = _categories(session, season)
+
+        return page(
+            title=f"{event.name} · {year} · BGX",
+            year=year,
+            active_year=year,
+            all_years=all_years,
+            current_nav="events",
+            body_children=[
+                Div(
+                    H1(event.name),
+                    P(
+                        _format_event_subtitle(event),
+                        cls="",
+                    ),
+                    cls="page-header",
+                ),
+                Div(
+                    *[
+                        A(
+                            f"{cat.display_name}",
+                            href=f"/{year}/{cat.code}/{event_slug}",
+                            cls="category-tab",
+                        )
+                        for cat in categories
+                    ],
+                    cls="category-tabs",
+                ),
+                Div(
+                    "Pick a category to see the full results for this event.",
+                    cls="empty",
+                ),
+            ],
+        )
+
+    @rt("/{year:int}/r/{race_number:int}")
+    def rider_by_number(year: int, race_number: int, request):
+        with get_session() as session:
+            season = _get_season(session, year)
+            if season is None:
+                return _not_found(year)
+            all_years = _all_years(session)
+            candidates = riders_sharing_number(session, season, race_number)
+
+            if not candidates:
+                return _not_found(year)
+            if len(candidates) == 1:
+                first, last = candidates[0]
+                return _render_rider_detail(
+                    session, year, season, race_number, first, last, all_years
+                )
+
+            return page(
+                title=f"#{race_number} · {year} · BGX",
+                year=year,
+                active_year=year,
+                all_years=all_years,
+                current_nav="standings",
+                body_children=[
+                    rider_disambiguation(
+                        year=year, race_number=race_number, riders=candidates
+                    ),
+                ],
+            )
+
+    @rt("/{year:int}/r/{race_number:int}/{slug}")
+    def rider_by_number_and_slug(year: int, race_number: int, slug: str, request):
+        with get_session() as session:
+            season = _get_season(session, year)
+            if season is None:
+                return _not_found(year)
+            all_years = _all_years(session)
+            candidates = riders_sharing_number(session, season, race_number)
+
+            match = next(
+                (
+                    (f, l)
+                    for (f, l) in candidates
+                    if _rider_slug(f, l) == slug.lower()
+                ),
+                None,
+            )
+            if match is None:
+                return _not_found(year)
+            first, last = match
+            return _render_rider_detail(
+                session, year, season, race_number, first, last, all_years
+            )
+
+    @rt("/{year:int}/{category_code}")
+    def standings_view(year: int, category_code: str, request):
+        user_agent = request.headers.get("user-agent", "")
+        track_visit("standings", category_code, user_agent, season_year=year)
+        return _standings_page(year, category_code=category_code, request_user_agent_fn=None)
+
+    @rt("/{year:int}/{category_code}/{event_slug}")
+    def event_detail(year: int, category_code: str, event_slug: str, request):
+        user_agent = request.headers.get("user-agent", "")
+        track_visit("event", category_code, user_agent, season_year=year)
+
+        with get_session() as session:
+            season = _get_season(session, year)
+            if season is None:
+                return _not_found(year)
+            all_years = _all_years(session)
+            category = session.execute(
+                select(Category).where(
+                    Category.season_id == season.id, Category.code == category_code
+                )
+            ).scalar_one_or_none()
+            event = session.execute(
+                select(Event).where(Event.season_id == season.id, Event.slug == event_slug)
+            ).scalar_one_or_none()
+            if category is None or event is None:
+                return _not_found(year)
+
+            categories = _categories(session, season)
+            events = events_for_season(session, season)
+            results = list(
+                session.execute(
+                    select(EventResult, Rider)
+                    .join(Rider, Rider.id == EventResult.rider_id)
+                    .where(
+                        EventResult.event_id == event.id,
+                        Rider.category_id == category.id,
+                    )
+                    .order_by(
+                        EventResult.position.is_(None),
+                        EventResult.position.asc(),
+                        desc(EventResult.points),
+                        Rider.race_number.asc(),
+                    )
+                )
+            )
+            has_timing = any(er.time_ms is not None for er, _ in results)
+
+        return page(
+            title=f"{event.name} · {category.display_name} · {year} · BGX",
+            year=year,
+            active_year=year,
+            all_years=all_years,
+            current_nav="events",
+            body_children=[
+                Div(
+                    H1(f"{event.name} — {category.display_name}"),
+                    P(_format_event_subtitle(event)),
+                    cls="page-header",
+                ),
+                event_buttons(
+                    year=year,
+                    events=events,
+                    active_category_code=category.code,
+                    active_event_slug=event.slug,
+                ),
+                category_tabs(year=year, categories=categories, active_code=category.code),
+                event_detail_table(results, has_timing=has_timing, year=year),
+                Div(
+                    A(f"← {year} {category.display_name} standings", href=f"/{year}/{category.code}"),
+                    cls="page-header",
+                    style="margin-top: 24px;",
+                ),
+            ],
+        )
 
     @rt("/stats")
     def stats(request):
-        """Statistics page showing visit analytics."""
-        # Track this visit
-        user_agent = request.headers.get('user-agent', '')
+        user_agent = request.headers.get("user-agent", "")
         track_visit("stats", "", user_agent)
-        
-        # Get all visits
-        all_visits = list(visits_table())
-        total_visits = len(all_visits)
-        
-        # Count visits by page
-        home_visits = sum(1 for v in all_visits if v.page == 'home')
-        stats_visits = sum(1 for v in all_visits if v.page == 'stats')
-        
-        # Count visits by device type
-        mobile_visits = sum(1 for v in all_visits if getattr(v, 'device_type', 'unknown') == 'mobile')
-        desktop_visits = sum(1 for v in all_visits if getattr(v, 'device_type', 'unknown') == 'desktop')
-        unknown_visits = sum(1 for v in all_visits if getattr(v, 'device_type', 'unknown') == 'unknown')
-        
-        # Count visits by category
-        category_counts = {}
-        for v in all_visits:
-            if v.page == 'home' and v.category:
-                category_counts[v.category] = category_counts.get(v.category, 0) + 1
-        
-        # Get recent visits (last 20)
-        recent_visits = sorted(all_visits, key=lambda x: x.timestamp, reverse=True)[:20]
-        
-        # Create category stats rows
-        category_rows = []
-        for cat_key in sorted(category_counts.keys(), key=lambda k: category_counts[k], reverse=True):
-            count = category_counts[cat_key]
-            percentage = (count / home_visits * 100) if home_visits > 0 else 0
-            category_rows.append(
-                Tr(
-                    Td(CATEGORIES.get(cat_key, cat_key), cls="px-4 py-3 text-slate-200"),
-                    Td(str(count), cls="px-4 py-3 text-center text-slate-200 font-bold"),
-                    Td(
-                        Div(
-                            Div(cls=f"h-2 gradient-bg rounded-full", style=f"width: {percentage}%"),
-                            cls="w-full bg-slate-700 rounded-full h-2"
-                        ),
-                        cls="px-4 py-3"
-                    ),
-                    Td(f"{percentage:.1f}%", cls="px-4 py-3 text-center text-slate-300"),
-                    cls="border-b border-slate-700/50"
-                )
+
+        with get_session() as session:
+            all_years = _all_years(session)
+            total = session.execute(select(func.count(Visit.id))).scalar_one()
+            devices = dict(
+                session.execute(
+                    select(Visit.device_type, func.count(Visit.id)).group_by(Visit.device_type)
+                ).all()
             )
-        
-        # Create recent visits rows
-        recent_rows = []
-        for visit in recent_visits:
-            try:
-                dt = datetime.fromisoformat(visit.timestamp)
-                time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except:
-                time_str = visit.timestamp
-            
-            page_display = "🏠 Home" if visit.page == 'home' else "📊 Stats"
-            category_display = CATEGORIES.get(visit.category, visit.category) if visit.category else "—"
-            
-            # Get device type with fallback for old records
-            device_type = getattr(visit, 'device_type', 'unknown')
-            if device_type == 'mobile':
-                device_display = "📱 Mobile"
-                device_class = "text-blue-400"
-            elif device_type == 'desktop':
-                device_display = "💻 Desktop"
-                device_class = "text-green-400"
-            else:
-                device_display = "❓ Unknown"
-                device_class = "text-slate-500"
-            
-            recent_rows.append(
-                Tr(
-                    Td(time_str, cls="px-4 py-3 text-slate-300 text-sm font-mono"),
-                    Td(page_display, cls="px-4 py-3 text-slate-200"),
-                    Td(category_display, cls="px-4 py-3 text-slate-300"),
-                    Td(device_display, cls=f"px-4 py-3 {device_class}"),
-                    cls="border-b border-slate-700/50"
-                )
+            recent = list(
+                session.execute(
+                    select(Visit).order_by(Visit.timestamp.desc()).limit(25)
+                ).scalars()
             )
-        
-        return Html(
-            Head(
-                Title("Visit Statistics - BGX Navigation Championship"),
-                Meta(charset="utf-8"),
-                Meta(name="viewport", content="width=device-width, initial-scale=1"),
-                Script(src="https://cdn.tailwindcss.com"),
-                Script("""
-                    tailwind.config = {
-                        theme: {
-                            extend: {
-                                colors: {
-                                    primary: '#2563eb',
-                                    secondary: '#7c3aed',
-                                }
-                            }
-                        }
-                    }
-                """),
-                get_styles()
-            ),
-            Body(
-                # Header Section
-                Div(
-                    H1(
-                        "📊 Visit Statistics",
-                        cls="text-4xl md:text-5xl font-black gradient-text mb-3"
-                    ),
-                    P(
-                        "Real-time analytics for BGX Navigation Championship Dashboard",
-                        cls="text-slate-400 text-lg md:text-xl"
-                    ),
-                    Div(
-                        A(
-                            "← Back to Championship",
-                            href="/",
-                            cls="inline-block mt-4 px-6 py-2 gradient-bg text-white rounded-lg font-semibold hover:scale-105 transition-all duration-200"
-                        ),
-                        cls="mt-6"
-                    ),
-                    cls="text-center py-12 px-4"
+            per_category = list(
+                session.execute(
+                    select(Visit.category, Visit.season_year, func.count(Visit.id))
+                    .where(Visit.page == "standings")
+                    .where(Visit.category.is_not(None))
+                    .group_by(Visit.category, Visit.season_year)
+                    .order_by(func.count(Visit.id).desc())
+                ).all()
+            )
+
+        default_year = all_years[0] if all_years else DEFAULT_SEASON_YEAR
+        stat_cards = Div(
+            _stat("Total visits", total),
+            _stat("Mobile", devices.get("mobile", 0)),
+            _stat("Desktop", devices.get("desktop", 0)),
+            _stat("Unknown", devices.get("unknown", 0)),
+            cls="stat-grid",
+        )
+
+        cat_rows = [
+            Tr(
+                Td(cat or "—"),
+                Td(str(year or "—"), cls="center mono"),
+                Td(str(count), cls="num mono"),
+            )
+            for (cat, year, count) in per_category
+        ]
+        recent_rows = [
+            Tr(
+                Td(
+                    Span(
+                        v.timestamp.strftime("%Y-%m-%d %H:%M"),
+                        cls="mono",
+                    )
                 ),
-                
-                # Stats Cards
+                Td(v.page or "—"),
+                Td((v.category or "—")),
+                Td(str(v.season_year or "—"), cls="center mono"),
+                Td(v.device_type, cls="center"),
+            )
+            for v in recent
+        ]
+
+        return page(
+            title="Visit stats · BGX",
+            year=default_year,
+            active_year=default_year,
+            all_years=all_years,
+            current_nav="stats",
+            body_children=[
+                Div(H1("Visit statistics"), P("Private analytics for this dashboard."), cls="page-header"),
+                stat_cards,
                 Div(
+                    Div(Div("Categories", cls="page-header"), cls="card-header"),
                     Div(
-                        Div(
-                            Div(
-                                Span("📈", cls="text-4xl mb-3"),
-                                Div(str(total_visits), cls="text-4xl font-bold text-slate-100"),
-                                Div("Total Visits", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
-                                cls="text-center"
+                        Table(
+                            Thead(
+                                Tr(
+                                    Th("Category"),
+                                    Th("Season", cls="center"),
+                                    Th("Visits", cls="num"),
+                                )
                             ),
-                            cls="bg-slate-800 rounded-xl p-8 border border-slate-700 shadow-lg"
+                            Tbody(*cat_rows) if cat_rows else Tbody(Tr(Td("No visits yet", colspan="3", cls="center"))),
                         ),
-                        Div(
-                            Div(
-                                Span("🏠", cls="text-4xl mb-3"),
-                                Div(str(home_visits), cls="text-4xl font-bold text-slate-100"),
-                                Div("Home Page Visits", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
-                                cls="text-center"
-                            ),
-                            cls="bg-slate-800 rounded-xl p-8 border border-slate-700 shadow-lg"
-                        ),
-                        Div(
-                            Div(
-                                Span("📊", cls="text-4xl mb-3"),
-                                Div(str(stats_visits), cls="text-4xl font-bold text-slate-100"),
-                                Div("Stats Page Visits", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
-                                cls="text-center"
-                            ),
-                            cls="bg-slate-800 rounded-xl p-8 border border-slate-700 shadow-lg"
-                        ),
-                        cls="grid grid-cols-1 md:grid-cols-3 gap-6"
+                        cls="scrollx",
                     ),
-                    cls="max-w-7xl mx-auto px-4 pb-8"
+                    cls="card",
                 ),
-                
-                # Device Statistics
+                Div(style="height: 24px;"),
                 Div(
+                    Div(Div("Recent activity", cls="page-header"), cls="card-header"),
                     Div(
-                        H2("Device Breakdown", cls="text-2xl font-bold text-slate-100 mb-6"),
-                        Div(
-                            Div(
-                                Div(
-                                    Span("💻", cls="text-3xl mb-3"),
-                                    Div(str(desktop_visits), cls="text-3xl font-bold text-slate-100"),
-                                    Div("Desktop", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
-                                    Div(
-                                        f"{(desktop_visits/total_visits*100 if total_visits > 0 else 0):.1f}%",
-                                        cls="text-xs text-slate-500 mt-1"
-                                    ),
-                                    cls="text-center"
-                                ),
-                                cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
+                        Table(
+                            Thead(
+                                Tr(
+                                    Th("When"),
+                                    Th("Page"),
+                                    Th("Category"),
+                                    Th("Season", cls="center"),
+                                    Th("Device", cls="center"),
+                                )
                             ),
-                            Div(
-                                Div(
-                                    Span("📱", cls="text-3xl mb-3"),
-                                    Div(str(mobile_visits), cls="text-3xl font-bold text-slate-100"),
-                                    Div("Mobile", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
-                                    Div(
-                                        f"{(mobile_visits/total_visits*100 if total_visits > 0 else 0):.1f}%",
-                                        cls="text-xs text-slate-500 mt-1"
-                                    ),
-                                    cls="text-center"
-                                ),
-                                cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
-                            ),
-                            Div(
-                                Div(
-                                    Span("❓", cls="text-3xl mb-3"),
-                                    Div(str(unknown_visits), cls="text-3xl font-bold text-slate-100"),
-                                    Div("Unknown", cls="text-sm uppercase tracking-wider text-slate-400 font-semibold mt-2"),
-                                    Div(
-                                        f"{(unknown_visits/total_visits*100 if total_visits > 0 else 0):.1f}%",
-                                        cls="text-xs text-slate-500 mt-1"
-                                    ),
-                                    cls="text-center"
-                                ),
-                                cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
-                            ),
-                            cls="grid grid-cols-1 md:grid-cols-3 gap-6"
+                            Tbody(*recent_rows) if recent_rows else Tbody(Tr(Td("No visits yet", colspan="5", cls="center"))),
                         ),
-                        cls="bg-slate-900/50 rounded-xl p-6 border border-slate-700"
+                        cls="scrollx",
                     ),
-                    cls="max-w-7xl mx-auto px-4 pb-8"
+                    cls="card",
                 ),
-                
-                # Category Statistics
-                Div(
-                    Div(
-                        Div(
-                            H2("Category Popularity", cls="text-2xl font-bold text-slate-100"),
-                            cls="px-6 py-5 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-slate-700"
-                        ),
-                        Div(
-                            Table(
-                                Thead(
-                                    Tr(
-                                        Th("Category", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-                                        Th("Visits", cls="px-4 py-3 text-center text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-                                        Th("Visual", cls="px-4 py-3 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-                                        Th("Percentage", cls="px-4 py-3 text-center text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-                                    )
-                                ),
-                                Tbody(*category_rows) if category_rows else Tbody(
-                                    Tr(Td("No category data yet", colspan="4", cls="px-4 py-6 text-center text-slate-500"))
-                                ),
-                                cls="w-full"
-                            ),
-                            cls="overflow-x-auto"
-                        ),
-                        cls="bg-slate-800 rounded-xl shadow-2xl border border-slate-700 overflow-hidden animate-fade-in"
-                    ),
-                    cls="max-w-7xl mx-auto px-4 pb-8"
-                ),
-                
-                # Recent Activity
-                Div(
-                    Div(
-                        Div(
-                            H2("Recent Activity", cls="text-2xl font-bold text-slate-100"),
-                            cls="px-6 py-5 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-slate-700"
-                        ),
-                        Div(
-                            Table(
-                                Thead(
-                                    Tr(
-                                        Th("Timestamp", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-                                        Th("Page", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-                                        Th("Category", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-                                        Th("Device", cls="px-4 py-3 text-left text-slate-400 uppercase text-xs font-semibold tracking-wider border-b-2 border-slate-700"),
-                                    )
-                                ),
-                                Tbody(*recent_rows) if recent_rows else Tbody(
-                                    Tr(Td("No visits yet", colspan="4", cls="px-4 py-6 text-center text-slate-500"))
-                                ),
-                                cls="w-full"
-                            ),
-                            cls="overflow-x-auto"
-                        ),
-                        cls="bg-slate-800 rounded-xl shadow-2xl border border-slate-700 overflow-hidden animate-fade-in"
-                    ),
-                    cls="max-w-7xl mx-auto px-4 pb-12"
-                ),
-                
-                # Footer
-                create_footer(),
-                
-                cls="min-h-screen py-8"
+            ],
+        )
+
+
+def _pick_landing_year(session) -> int:
+    current = session.execute(
+        select(Season.year).where(Season.is_current.is_(True)).order_by(Season.year.desc())
+    ).scalar_one_or_none()
+    if current:
+        return current
+    latest = session.execute(
+        select(Season.year).order_by(Season.year.desc())
+    ).scalar_one_or_none()
+    return latest or DEFAULT_SEASON_YEAR
+
+
+def _get_season(session, year: int):
+    return session.execute(select(Season).where(Season.year == year)).scalar_one_or_none()
+
+
+def _all_years(session) -> list[int]:
+    return list(
+        session.execute(select(Season.year).order_by(Season.year.desc())).scalars()
+    )
+
+
+def _categories(session, season: Season):
+    return list(
+        session.execute(
+            select(Category)
+            .where(Category.season_id == season.id)
+            .order_by(Category.sort_order, Category.id)
+        ).scalars()
+    )
+
+
+def _standings_page(year: int, *, category_code: str | None, request_user_agent_fn):
+    with get_session() as session:
+        season = _get_season(session, year)
+        if season is None:
+            return _not_found(year)
+        all_years = _all_years(session)
+        categories = _categories(session, season)
+        if not categories:
+            return page(
+                title=f"{year} · BGX",
+                year=year,
+                active_year=year,
+                all_years=all_years,
+                current_nav="standings",
+                body_children=[
+                    Div(H1(f"{year} Season"), P(_season_subtitle(season, [])), cls="page-header"),
+                    empty_state("No categories imported for this season yet."),
+                ],
+            )
+        if category_code is None:
+            return RedirectResponse(f"/{year}/{categories[0].code}", status_code=302)
+        category = next((c for c in categories if c.code == category_code), None)
+        if category is None:
+            return RedirectResponse(f"/{year}/{categories[0].code}", status_code=302)
+
+        events = events_for_season(session, season)
+        standings_rows = get_standings(session, season, category)
+
+    body_children = [
+        Div(
+            H1(f"{season.name}"),
+            P(_season_subtitle(season, events)),
+            cls="page-header",
+        ),
+        event_buttons(year=year, events=events, active_category_code=category.code),
+        category_tabs(year=year, categories=categories, active_code=category.code),
+        _standings_meta(category=category, events=events, rows=standings_rows),
+        standings_table(
+            year=year,
+            category=category,
+            events=events,
+            standings_rows=standings_rows,
+            championship_format=season.championship_format,
+        ),
+    ]
+
+    return page(
+        title=f"{category.display_name} · {year} · BGX",
+        year=year,
+        active_year=year,
+        all_years=all_years,
+        current_nav="standings",
+        body_children=body_children,
+    )
+
+
+def _standings_meta(*, category, events, rows):
+    total_riders = len(rows)
+    total_events = len(events)
+    leader = rows[0] if rows else None
+
+    cards = [
+        _stat("Category", category.display_name),
+        _stat("Riders", total_riders),
+        _stat("Events", total_events),
+    ]
+    if leader is not None:
+        cards.append(
+            _stat(
+                "Leader",
+                f"#{leader.rider.race_number} {leader.rider.first_name} {leader.rider.last_name}".strip(),
+                secondary=f"{_fmt(leader.total_points)} pts",
             )
         )
 
-    @rt("/")
-    def get(request, category: str = "expert"):
-        """Main page route with Tailwind styling."""
-        # Track this visit
-        user_agent = request.headers.get('user-agent', '')
-        track_visit("home", category, user_agent)
-        
-        # Load data for selected category
-        df = load_category_data(category)
-        
-        # Calculate some stats
-        total_riders = len(df) if df is not None else 0
-        total_races = len(get_race_columns(df)) if df is not None else 0
-        
-        # Create category tabs with Tailwind styling
-        tabs = []
-        for cat_key, cat_name in CATEGORIES.items():
-            if cat_key == category:
-                tabs.append(
-                    A(
-                        cat_name, 
-                        href=f"/?category={cat_key}", 
-                        cls="px-6 py-3 gradient-bg text-white rounded-lg font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
-                    )
-                )
-            else:
-                tabs.append(
-                    A(
-                        cat_name, 
-                        href=f"/?category={cat_key}", 
-                        cls="px-6 py-3 bg-slate-800 text-slate-300 border-2 border-slate-700 rounded-lg font-semibold hover:border-blue-500 hover:bg-blue-500/10 hover:text-slate-100 transform hover:-translate-y-0.5 transition-all duration-200"
-                    )
-                )
-        
-        # Stats with Tailwind styling
-        stats = Div(
-            Div(
-                # Total Riders
-                Div(
-                    Div(
-                        Span("👥", cls="text-3xl mb-2"),
-                        Div(str(total_riders), cls="text-3xl font-bold text-slate-100"),
-                        Div("Total Riders", cls="text-xs uppercase tracking-wider text-slate-400 font-semibold mt-1"),
-                        cls="text-center"
-                    ),
-                    cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
-                ),
-                # Total Races
-                Div(
-                    Div(
-                        Span("🏁", cls="text-3xl mb-2"),
-                        Div(str(total_races), cls="text-3xl font-bold text-slate-100"),
-                        Div("Total Races", cls="text-xs uppercase tracking-wider text-slate-400 font-semibold mt-1"),
-                        cls="text-center"
-                    ),
-                    cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
-                ),
-                # Current Category
-                Div(
-                    Div(
-                        Span("🏆", cls="text-3xl mb-2"),
-                        Div(CATEGORIES[category], cls="text-3xl font-bold text-slate-100"),
-                        Div("Category", cls="text-xs uppercase tracking-wider text-slate-400 font-semibold mt-1"),
-                        cls="text-center"
-                    ),
-                    cls="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg"
-                ),
-                cls="grid grid-cols-1 md:grid-cols-3 gap-4"
-            ),
-            cls="max-w-7xl mx-auto px-4 pb-8"
-        )
-        
-        return Html(
-            Head(
-                Title("BGX Hard Enduro Championship 2025 (Unofficial)"),
-                Meta(charset="utf-8"),
-                Meta(name="viewport", content="width=device-width, initial-scale=1"),
-                Script(src="https://cdn.tailwindcss.com"),
-                Script("""
-                    tailwind.config = {
-                        theme: {
-                            extend: {
-                                colors: {
-                                    primary: '#2563eb',
-                                    secondary: '#7c3aed',
-                                }
-                            }
-                        }
-                    }
-                """),
-                get_styles()
-            ),
-            Body(
-                # Header Section
-                Div(
-                    H1(
-                        "🏆 BGX Hard Enduro Championship 2025 (Unofficial)",
-                        cls="text-4xl md:text-5xl lg:text-6xl font-black gradient-text mb-3"
-                    ),
-                    P(
-                        "BGX Hard Enduro Championship 2025 Results from first navigation day",
-                        cls="text-slate-400 text-lg md:text-xl"
-                    ),
-                    cls="text-center py-12 px-4"
-                ),
-                # Category Tabs
-                Div(
-                    *tabs, 
-                    cls="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 max-w-5xl mx-auto mb-8 px-4"
-                ),
-                # Stats Section
-                stats,
-                # Leaderboard Section
-                Div(
-                    create_leaderboard_table(df, category),
-                    cls="max-w-7xl mx-auto px-4 pb-12"
-                ),
-                # Footer
-                create_footer(),
-                cls="min-h-screen py-8"
-            )
-        )
+    return Div(*cards, cls="stat-grid")
 
+
+def _stat(label: str, value, *, secondary: str | None = None):
+    children = [
+        Div(label, cls="label"),
+        Div(str(value), cls="value"),
+    ]
+    if secondary:
+        children.append(Div(secondary, cls="rider-meta"))
+    return Div(*children, cls="stat")
+
+
+def _season_subtitle(season: Season, events) -> str:
+    bits = []
+    if events:
+        bits.append(f"{len(events)} event{'s' if len(events) != 1 else ''}")
+    if season.championship_format == "aggregate_2025":
+        bits.append("drop-worst scoring (season total minus lowest race)")
+    elif season.championship_format == "per_event":
+        bits.append("per-event scoring, season total = sum of rounds")
+    return " · ".join(bits) or "BGX Hard Enduro Championship"
+
+
+def _format_event_subtitle(event) -> str:
+    parts = []
+    if event.event_date:
+        parts.append(event.event_date.strftime("%B %-d, %Y"))
+    if event.location:
+        parts.append(event.location)
+    if event.event_type:
+        parts.append(event.event_type.title())
+    return " · ".join(parts)
+
+
+def _fmt(v) -> str:
+    f = float(v)
+    return str(int(f)) if f == int(f) else f"{f:g}"
+
+
+def _render_rider_detail(session, year, season, race_number, first, last, all_years):
+    profile = get_rider_profile(session, season, race_number, first, last)
+    if profile is None:
+        return _not_found(year)
+    has_timing = any(r.time_ms is not None for r in profile.results)
+    return page(
+        title=f"#{race_number} {first} {last} · {year} · BGX",
+        year=year,
+        active_year=year,
+        all_years=all_years,
+        current_nav="standings",
+        body_children=[
+            rider_header(profile=profile, year=year, has_timing=has_timing),
+            rider_results_table(year=year, profile=profile, has_timing=has_timing),
+        ],
+    )
+
+
+def _rider_slug(first: str, last: str) -> str:
+    return f"{first.strip()}-{last.strip()}".replace(" ", "-").lower()
+
+
+def _not_found(year: int):
+    return page(
+        title=f"Not found · BGX",
+        year=year,
+        active_year=year,
+        all_years=[year],
+        current_nav="standings",
+        body_children=[
+            Div(H1("Not found"), P("That page doesn't exist."), cls="page-header"),
+        ],
+    )

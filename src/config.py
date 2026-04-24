@@ -1,39 +1,37 @@
 """Configuration and constants for the BGX Navigation Dashboard."""
 
+import os
 from pathlib import Path
 
-# Version
-APP_VERSION = "0.0.1"
+from dotenv import load_dotenv
 
-# Paths
+load_dotenv()
+
+APP_VERSION = "0.1.0"
+
 BASE_DIR = Path(__file__).parent.parent
-RESULTS_PATH = BASE_DIR / "data" / "bgx-result-2025-full"
-DB_PATH = BASE_DIR / "data" / "visits.db"
 
-# Server settings
 DEFAULT_PORT = 5001
 DEFAULT_HOST = "0.0.0.0"
 
-# Define categories with display names
-CATEGORIES = {
-    "profi": "Pro",
-    "expert": "Expert",
-    "standard": "Standard",
-    "standard_junior": "Standard Junior",
-    "junior": "Junior",
-    "women": "Women",
-    "seniors_40": "Senior 40+",
-    "seniors_50": "Senior 50+"
-}
 
-# Define the desired race order
-RACE_ORDER = [
-    'Race_kyrnare',
-    'Race_stara_zagora',
-    'Race_buhovo',
-    'Race_gorna_malina',
-    'Race_alba_damascena',
-    'Race_six_days',
-    'Race_kirkovo'
-]
+def _normalize_database_url(url: str) -> str:
+    # Railway provides postgres:// but SQLAlchemy 2.x requires postgresql://
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg2://" + url[len("postgres://"):]
+    if url.startswith("postgresql://") and "+psycopg2" not in url:
+        return "postgresql+psycopg2://" + url[len("postgresql://"):]
+    return url
 
+
+def get_database_url() -> str:
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Copy .env.example to .env for local dev, "
+            "or attach a Postgres plugin on Railway."
+        )
+    return _normalize_database_url(url)
+
+
+DEFAULT_SEASON_YEAR = int(os.getenv("DEFAULT_SEASON_YEAR", "2026"))

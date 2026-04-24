@@ -1,22 +1,42 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bgx-postgres
+    environment:
+      POSTGRES_USER: bgx
+      POSTGRES_PASSWORD: bgx
+      POSTGRES_DB: bgx
+    ports:
+      - "5432:5432"
+    volumes:
+      - bgx-pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bgx -d bgx"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   dashboard:
     build: .
     container_name: bgx-dashboard
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "5001:5001"
     environment:
       - PORT=5001
       - HOST=0.0.0.0
-    volumes:
-      # Mount the data directory as read-only
-      - ../result-parsing/bgx-result-2025-full:/app/data:ro
+      - DATABASE_URL=postgresql+psycopg2://bgx:bgx@postgres:5432/bgx
+      - DEFAULT_SEASON_YEAR=2026
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001"]
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
+volumes:
+  bgx-pg-data:

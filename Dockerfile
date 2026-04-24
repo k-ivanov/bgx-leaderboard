@@ -1,33 +1,30 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
-# Metadata
-LABEL version="0.0.1"
-LABEL description="BGX Hard Enduro Championship 2025 Dashboard"
-LABEL maintainer="BGX Dashboard"
+LABEL version="0.1.0"
+LABEL description="BGX Hard Enduro Championship Dashboard"
 
-# Set working directory
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=5001 \
+    HOST=0.0.0.0
+
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# System deps: psycopg2-binary ships with its own libpq, so no build tools needed.
+# curl is kept for Docker healthchecks.
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
-COPY main.py .
+COPY alembic.ini ./alembic.ini
+COPY alembic ./alembic
+COPY src ./src
+COPY scripts ./scripts
+COPY main.py ./main.py
 
-# Copy data directory (adjust path as needed)
-COPY data ./data
-
-# Expose port
 EXPOSE 5001
 
-# Set environment variables
-ENV PORT=5001
-ENV HOST=0.0.0.0
-ENV APP_VERSION=0.0.1
-
-# Run the application
-CMD ["python", "main.py"]
-
+# Apply pending migrations, then boot the app. Railway re-runs this on every deploy.
+CMD ["sh", "-c", "alembic upgrade head && python main.py"]
