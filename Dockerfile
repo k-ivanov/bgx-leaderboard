@@ -15,14 +15,14 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY alembic.ini ./alembic.ini
-COPY alembic ./alembic
-COPY src ./src
-COPY scripts ./scripts
-COPY main.py ./main.py
+COPY backend/alembic.ini ./alembic.ini
+COPY backend/alembic ./alembic
+COPY backend/src ./src
+COPY backend/scripts ./scripts
+COPY backend/main.py ./main.py
 
 EXPOSE 5001
 
