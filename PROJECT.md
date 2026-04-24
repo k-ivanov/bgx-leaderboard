@@ -82,7 +82,8 @@ The site has **8 distinct user-facing pages**, all static HTML:
 | 7 | **Rider disambiguation** | `/{year}/r/{race_number}` | When multiple riders share a number |
 | 8 | **Rider profile** | `/{year}/r/{race_number}/{slug}` | Header + every result across categories |
 | 9 | **Stats** (private) | `/stats` | Auth-gated visit analytics |
-| 10 | **404** | (SPA fallback) | `Page not found` with CTA back to leaderboard |
+| 10 | **Admin** (private) | `/admin/*` | SQLAdmin panel for ORM CRUD |
+| 11 | **404** | (SPA fallback) | `Page not found` with CTA back to leaderboard |
 
 Full anatomy (top-to-bottom layout, mobile reflow, stat cards, component
 tree) for each view: see [`.plan/design-review.md`](.plan/design-review.md) §4.
@@ -167,7 +168,29 @@ context to distinguish (`#N  First Last · Team · Categories` for each).
 If only one rider has that number, the page 302-redirects to the singular
 profile directly.
 
-### 3.7 Stats (private, `/stats`)
+### 3.7 Admin panel (private, `/admin`)
+
+SQLAdmin-powered CRUD over the ORM models. Editable for metadata (flip
+`is_current` on a season, fix a rider name, correct a race date, delete a
+mistakenly-imported result); read-only for `Visit` (audit log).
+
+Login form at `/admin/login`, username from `ADMIN_USERNAME` (default
+`admin`), password from `ADMIN_PASSWORD`. Empty `ADMIN_PASSWORD` keeps
+admin off — any login returns 400.
+
+Model views:
+- **Season** — editable `is_current` inline, sortable by year.
+- **Category** — searchable by `code` / `display_name`.
+- **Race** (DB table: `event`) — searchable by name/location, sortable by date.
+- **Rider** — searchable by name/team/bike.
+- **Result** (DB table: `event_result`) — sortable by position.
+- **Visit** — read-only audit log.
+
+Bulk race-result imports stay on the `scripts/import_event.py` CLI — that's
+the right tool for a 60-row CSV. The admin panel is for corrections, overrides,
+and metadata changes.
+
+### 3.8 Stats (private, `/stats`)
 
 Auth-gated (HTTP Basic, `STATS_PASSWORD` env var). Shows:
 
