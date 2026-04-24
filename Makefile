@@ -150,25 +150,19 @@ migrate: $(BACKEND)/$(VENV)/.installed-backend db-up ## Apply all pending alembi
 	@cd $(BACKEND) && . $(VENV)/bin/activate && alembic upgrade head
 
 .PHONY: seed
-seed: seed-2025 ## Seed all available seasons (currently just 2025)
+seed: seed-all ## Clean DB + re-import every year folder under scripts/seed_data/
+
+.PHONY: seed-all
+seed-all: migrate ## Wipe championship data + import every year folder (keeps visits)
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all
 
 .PHONY: seed-2025
-seed-2025: migrate ## Import the 2025 aggregate CSVs (idempotent — wipes + rebuilds 2025)
-	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.import_2025
+seed-2025: migrate ## Import ONLY the 2025 aggregate CSVs (add-only; for partial reseed)
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all --year 2025 --no-wipe
 
-.PHONY: seed-2026-karnare
-seed-2026-karnare: migrate ## Import the 2026 Kyrnare event for every category (idempotent)
-	@cd $(BACKEND) && . $(VENV)/bin/activate && \
-	for cat_csv in scripts/seed_data/bgx-results-2026/karnare_2026_navigation_*.csv; do \
-	  cat=$$(basename "$$cat_csv" .csv | sed -E 's/^karnare_2026_navigation_//; s/standart/standard/; s/seniors_40plus/seniors_40/; s/seniors_50plus/seniors_50/'); \
-	  name=$$(echo "$$cat" | sed -E 's/_/ /g; s/\<./\U&/g'); \
-	  printf "  → %s\n" "$$cat"; \
-	  $(PYTHON) -m scripts.import_event \
-	    --file "$$cat_csv" \
-	    --season 2026 \
-	    --category "$$cat" --category-name "$$name" \
-	    --event karnare --event-name "Kyrnare" --event-date 2026-04-18; \
-	done
+.PHONY: seed-2026
+seed-2026: migrate ## Import ONLY the 2026 per-event CSVs (add-only; for partial reseed)
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all --year 2026 --no-wipe
 
 .PHONY: import-event
 import-event: ## Import one (race, category) CSV. Usage: make import-event FILE=... CAT=expert CAT_NAME="Expert" EVENT=karnare EVENT_NAME="Kyrnare" DATE=2026-04-18 YEAR=2026

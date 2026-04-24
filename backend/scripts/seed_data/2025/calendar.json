@@ -1,0 +1,14 @@
+{
+  "season_name": "BGX Hard Enduro 2025",
+  "championship_format": "aggregate_2025",
+  "is_current": false,
+  "events": [
+    { "slug": "kyrnare",        "name": "Хард Ендуро Кърнаре",      "event_date": "2025-03-28", "location": "Кърнаре",      "event_type": "Навигация + Ендурокрос" },
+    { "slug": "stara_zagora",   "name": "Хард Ендуро Стара Загора", "event_date": "2025-04-12", "location": "Стара Загора", "event_type": "2 дни навигация" },
+    { "slug": "buhovo",         "name": "Хард Ендуро Бухово",       "event_date": "2025-05-03", "location": "Бухово",       "event_type": "2 дни навигация" },
+    { "slug": "gorna_malina",   "name": "Хард Ендуро Горна Малина", "event_date": "2025-05-17", "location": "Горна Малина", "event_type": "2 дни навигация" },
+    { "slug": "alba_damascena", "name": "EnduroX Alba - Damascena", "event_date": "2025-06-14", "location": "Скобелево",    "event_type": "Навигация + Ендурокрос" },
+    { "slug": "six_days",       "name": "Six Days Crazy Job",       "event_date": "2025-08-10", "location": "Габрово",      "event_type": "Ендурокрос + Навигация" },
+    { "slug": "kirkovo",        "name": "Хард Ендуро Кирково",      "event_date": "2025-09-20", "location": "Кирково",      "event_type": "Навигация + Ендурокрос" }
+  ]
+}

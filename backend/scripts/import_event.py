@@ -185,6 +185,7 @@ def import_event(
     event_name: str,
     event_date: Optional[date],
     event_type: Optional[str],
+    day: int = 1,
 ) -> None:
     with get_session() as session:
         season = _get_or_create_season(session, season_year)
@@ -195,13 +196,14 @@ def import_event(
             session, season, event_slug, event_name, event_date, event_type
         )
 
-        # Wipe existing results for this (event, category) pair to support re-runs.
-        # Results are identified via the rider's category_id.
+        # Wipe existing results for this (event, category, day) triple to support
+        # re-runs. Keeps the other days intact when re-importing just one day.
         category_riders = select(Rider.id).where(Rider.category_id == category.id)
         session.execute(
             delete(EventResult).where(
                 EventResult.event_id == event.id,
                 EventResult.rider_id.in_(category_riders),
+                EventResult.day == day,
             )
         )
         session.flush()
@@ -251,6 +253,7 @@ def import_event(
                     EventResult(
                         event_id=event.id,
                         rider_id=rider.id,
+                        day=day,
                         position=position,
                         points=points,
                         time_ms=time_ms,
@@ -262,7 +265,8 @@ def import_event(
                     )
                 )
 
-        print(f"imported {csv_path.name} → season={season_year} event={event_slug} category={category_code}")
+        day_suffix = f" day={day}" if day != 1 else ""
+        print(f"imported {csv_path.name} → season={season_year} event={event_slug} category={category_code}{day_suffix}")
 
 
 def _parse_date(s: Optional[str]) -> Optional[date]:
@@ -281,6 +285,7 @@ def main() -> None:
     parser.add_argument("--event-name", required=True, help="Event display name.")
     parser.add_argument("--event-date", help="Event date in YYYY-MM-DD.")
     parser.add_argument("--event-type", help="Optional event type (e.g. navigation).")
+    parser.add_argument("--day", type=int, default=1, help="Day number within a multi-day event (default 1).")
     args = parser.parse_args()
 
     import_event(
@@ -292,6 +297,7 @@ def main() -> None:
         event_name=args.event_name,
         event_date=_parse_date(args.event_date),
         event_type=args.event_type,
+        day=args.day,
     )
 
 

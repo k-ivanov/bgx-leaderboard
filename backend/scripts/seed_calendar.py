@@ -3,21 +3,25 @@
 Usage:
     python -m scripts.seed_calendar --season 2026
 
-Reads the calendar definition from `scripts.seed_data.calendar_<year>` —
-a Python module that exposes a `CALENDAR` list and an optional
-`SEASON_NAME`. See `scripts/seed_data/calendar_2026.py` for the template.
+Reads `scripts/seed_data/<year>/calendar.json` and upserts Season + Event rows.
+Safe to re-run — names, dates, types, and sort order update in place; new
+rounds append. Results (EventResult rows) are NOT touched.
 
-Safe to re-run after editing the calendar: names, dates, types, and sort
-order are updated in place, and new rounds are appended.
+For a full reimport (wipe + reseed everything), use ``scripts.seed_all``.
 """
 
 import argparse
-import importlib
+import json
+from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy import select
 
 from src.db import get_session
 from src.db.models import Event, Season
+
+
+SEED_ROOT = Path(__file__).resolve().parent / "seed_data"
 
 
 def _get_or_create_season(session, year: int, name: str) -> Season:
@@ -38,22 +42,27 @@ def _get_or_create_season(session, year: int, name: str) -> Season:
 
 
 def seed_calendar(year: int) -> None:
-    module_name = f"scripts.seed_data.calendar_{year}"
-    try:
-        calendar_module = importlib.import_module(module_name)
-    except ModuleNotFoundError as exc:
+    calendar_path = SEED_ROOT / str(year) / "calendar.json"
+    if not calendar_path.is_file():
         raise SystemExit(
-            f"No calendar module found at {module_name}. "
-            f"Create scripts/seed_data/calendar_{year}.py with a CALENDAR list."
-        ) from exc
+            f"No calendar file at {calendar_path}. "
+            f"Create scripts/seed_data/{year}/calendar.json with season_name, "
+            f"championship_format, is_current, events[]."
+        )
+    with calendar_path.open(encoding="utf-8") as f:
+        calendar = json.load(f)
 
-    entries = getattr(calendar_module, "CALENDAR", None)
+    entries = calendar.get("events") or []
     if not entries:
-        raise SystemExit(f"{module_name}.CALENDAR is empty.")
-    season_name = getattr(calendar_module, "SEASON_NAME", f"BGX Hard Enduro {year}")
+        raise SystemExit(f"{calendar_path}: 'events' list is empty.")
+    season_name = calendar.get("season_name", f"BGX Hard Enduro {year}")
 
     with get_session() as session:
         season = _get_or_create_season(session, year, season_name)
+        if "championship_format" in calendar:
+            season.championship_format = calendar["championship_format"]
+        if "is_current" in calendar:
+            season.is_current = bool(calendar["is_current"])
 
         existing = {
             ev.slug: ev
@@ -63,27 +72,34 @@ def seed_calendar(year: int) -> None:
         }
 
         for sort_order, entry in enumerate(entries):
-            slug = entry.slug
+            slug = entry["slug"]
+            event_date = (
+                datetime.strptime(entry["event_date"], "%Y-%m-%d").date()
+                if entry.get("event_date") else None
+            )
+            name = entry["name"]
+            location = entry.get("location")
+            event_type = entry.get("event_type")
             ev = existing.get(slug)
             if ev is None:
                 ev = Event(
                     season_id=season.id,
                     slug=slug,
-                    name=entry.name,
-                    event_date=entry.event_date,
-                    location=entry.location,
-                    event_type=entry.event_type,
+                    name=name,
+                    event_date=event_date,
+                    location=location,
+                    event_type=event_type,
                     sort_order=sort_order,
                 )
                 session.add(ev)
-                print(f"+ add:    {year} {sort_order + 1:>2}. {slug:<16} {entry.name} ({entry.event_date})")
+                print(f"+ add:    {year} {sort_order + 1:>2}. {slug:<16} {name} ({event_date})")
             else:
-                ev.name = entry.name
-                ev.event_date = entry.event_date
-                ev.location = entry.location
-                ev.event_type = entry.event_type
+                ev.name = name
+                ev.event_date = event_date
+                ev.location = location
+                ev.event_type = event_type
                 ev.sort_order = sort_order
-                print(f"~ update: {year} {sort_order + 1:>2}. {slug:<16} {entry.name} ({entry.event_date})")
+                print(f"~ update: {year} {sort_order + 1:>2}. {slug:<16} {name} ({event_date})")
 
     print(f"done — {len(entries)} event(s) in the {year} calendar")
 

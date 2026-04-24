@@ -18,7 +18,7 @@ from src.db import get_session
 from src.db.models import Category, Event, EventResult, Rider, Season
 from src.seasons import CATEGORIES_2025, RACE_ORDER_2025
 
-DEFAULT_CSV_DIR = Path(__file__).resolve().parent / "seed_data" / "bgx-result-2025-full"
+DEFAULT_CSV_DIR = Path(__file__).resolve().parent / "seed_data" / "2025"
 
 
 def _wipe_season(session, season: Season) -> None:
@@ -112,7 +112,7 @@ def main() -> None:
         "--csv-dir",
         type=Path,
         default=DEFAULT_CSV_DIR,
-        help="Directory containing <category>.csv files (default: scripts/seed_data/bgx-result-2025-full)",
+        help="Directory containing <category>.csv files (default: scripts/seed_data/2025)",
     )
     parser.add_argument(
         "--is-current",

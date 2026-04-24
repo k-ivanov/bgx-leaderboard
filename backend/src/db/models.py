@@ -116,6 +116,11 @@ class EventResult(Base):
     event_id: Mapped[int] = mapped_column(ForeignKey("event.id", ondelete="CASCADE"), nullable=False)
     rider_id: Mapped[int] = mapped_column(ForeignKey("rider.id", ondelete="CASCADE"), nullable=False)
 
+    # Day number within the event (1 for single-day events, 1-N for multi-day).
+    # Championship total for an event = sum of points across all days for the
+    # same (rider, event) pair. See services/standings.py.
+    day: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+
     position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     points: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
     time_ms: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
@@ -130,14 +135,16 @@ class EventResult(Base):
     rider: Mapped[Rider] = relationship(back_populates="results")
 
     __table_args__ = (
-        UniqueConstraint("event_id", "rider_id", name="uq_result_event_rider"),
+        # Allows the same (event, rider) pair to have one row per day.
+        UniqueConstraint("event_id", "rider_id", "day", name="uq_result_event_rider_day"),
         Index("ix_result_event", "event_id"),
         Index("ix_result_rider", "rider_id"),
     )
 
     def __str__(self) -> str:
         pos = f"P{self.position}" if self.position else "—"
-        return f"{pos} {self.rider} @ {self.event}"
+        day_suffix = f" D{self.day}" if self.day > 1 else ""
+        return f"{pos} {self.rider} @ {self.event}{day_suffix}"
 
 
 class Visit(Base):
