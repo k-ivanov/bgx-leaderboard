@@ -21,12 +21,18 @@ import type {
 } from './api.types';
 
 function apiBase(): string {
-  // In SSR/build contexts, prefer API_URL; fall back to localhost.
-  if (typeof process !== 'undefined' && process.env?.API_URL) {
-    return process.env.API_URL.replace(/\/+$/, '');
+  // Browser runtime — use same-origin relative URLs. In dev, Astro's Vite
+  // dev server proxies /api/* to the backend on :5001 (astro.config.mjs).
+  // In production the backend serves the frontend, so /api/* is same-origin.
+  if (typeof window !== 'undefined') {
+    return '';
   }
-  // In the browser, use same-origin (empty = relative).
-  return '';
+  // Node / SSR / build: fetch() requires an absolute URL. Prefer API_URL,
+  // fall back to 127.0.0.1 (IPv4) explicitly — "localhost" resolves to
+  // IPv6 (::1) first in Node 18+ and uvicorn binds IPv4 by default,
+  // which causes ECONNREFUSED on an otherwise reachable backend.
+  const override = (globalThis as any).process?.env?.API_URL;
+  return (override ?? 'http://127.0.0.1:5001').replace(/\/+$/, '');
 }
 
 async function getJson<T>(path: string): Promise<T> {
@@ -85,12 +91,10 @@ export const api = {
     page: string;
     category?: string | null;
     season_year?: number | null;
-  }): Promise<{ ok: boolean }> => {
-    const base = typeof window === 'undefined' ? apiBase() : '';
-    return fetch(`${base}/api/track`, {
+  }): Promise<{ ok: boolean }> =>
+    fetch(`${apiBase()}/api/track`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
-    }).then(r => r.json());
-  },
+    }).then(r => r.json()),
 };

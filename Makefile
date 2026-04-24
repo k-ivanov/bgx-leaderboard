@@ -83,6 +83,12 @@ dev: ## Run backend + frontend in the foreground (Ctrl-C stops both)
 	@$(MAKE) db-up
 	@trap '$(MAKE) dev-stop' INT TERM EXIT; \
 	  ($(MAKE) --no-print-directory dev-backend &) && \
+	  printf "$(C_GOLD)→$(C_RESET) waiting for backend :$(PORT)…\n" && \
+	  for i in $$(seq 1 30); do \
+	    if curl -fsS http://127.0.0.1:$(PORT)/health >/dev/null 2>&1; then \
+	      printf "$(C_GOLD)✓$(C_RESET) backend ready after %ss\n" $$i; break; \
+	    fi; sleep 1; \
+	  done && \
 	  ($(MAKE) --no-print-directory dev-frontend &) && \
 	  wait
 
