@@ -3,18 +3,21 @@
 Mount order is load-bearing (eng-review A-1 / N1):
     1. /api/* routers          → JSON endpoints
     2. /health                 → JSON health check
-    3. (Phase 4 will add StaticFiles at / for the Astro-built frontend)
+    3. /* StaticFiles          → serves the Astro-built frontend dist/
+                                 (404.html fallback for unknown paths)
 
-During Phase 1, hitting any non-/api path returns a 404 from FastAPI's default
-handler; this is expected until Phase 4 mounts the static frontend.
-
-No CORS middleware is installed — the frontend and API ship same-origin in
-production (Phase 4). A test in ``tests/test_cors.py`` asserts no
-Access-Control-* headers leak (eng-review SC-3 / N8).
+No CORS middleware is installed — the frontend and API ship same-origin.
+A test in ``tests/test_cors.py`` asserts no Access-Control-* headers leak
+(eng-review SC-3 / N8).
 """
 
+import os
+from pathlib import Path
+from typing import Optional
+
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -98,7 +101,102 @@ def create_app() -> FastAPI:
     app.include_router(stats_api.router)
     app.include_router(track_api.router)
 
+    _mount_frontend_if_present(app)
+
     return app
+
+
+def _mount_frontend_if_present(app: FastAPI) -> None:
+    """Mount the Astro-built frontend at `/` if `FRONTEND_DIST` exists.
+
+    MUST run AFTER all /api/* routers have been registered. The default
+    `StaticFiles(html=True)` matches everything, so registering it earlier
+    would shadow later routes. For 404 behavior we provide an explicit
+    catch-all that returns `dist/404.html` with a real 404 status.
+    """
+    dist_path = _resolve_frontend_dist()
+    if dist_path is None:
+        return
+
+    # Serve /_astro/* assets (hashed, long-cacheable) + /robots.txt + any
+    # file that exists on disk. The `html=True` flag makes `/2026/expert`
+    # resolve to `/2026/expert/index.html`.
+    app.mount(
+        "/",
+        FrontendStatic(directory=str(dist_path), html=True, dist=dist_path),
+        name="frontend",
+    )
+
+
+def _resolve_frontend_dist() -> Optional[Path]:
+    """Find the Astro build output. Honors FRONTEND_DIST env var, else defaults
+    to the sibling ``frontend_dist/`` dir co-located with the backend in the
+    container. Returns None if no dist is present (dev: API-only mode)."""
+    override = os.getenv("FRONTEND_DIST")
+    if override:
+        p = Path(override)
+        return p if p.is_dir() else None
+
+    # Production layout: /app/frontend_dist (set in Dockerfile).
+    prod = Path("/app/frontend_dist")
+    if prod.is_dir():
+        return prod
+
+    # Local dev convenience: ../frontend/dist relative to this file.
+    local = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    if local.is_dir():
+        return local
+
+    return None
+
+
+class FrontendStatic(StaticFiles):
+    """StaticFiles subclass that:
+
+    - Returns a JSON 404 for any path starting with ``api/`` (eng-review A-1).
+      The mount at ``/`` catches ``/api/*`` paths that no router matched,
+      which would otherwise 404 as HTML. We keep the API contract JSON-only.
+    - Serves directory paths (``/2026/expert``) directly as their contained
+      ``index.html`` WITHOUT issuing the default 307 trailing-slash redirect.
+      Preserves the current FastHTML URL shape (no trailing slash) for backward
+      compatibility — important because search engines have indexed the
+      trailing-slash-free URLs for months.
+    - Otherwise serves the built 404.html with a real 404 status for any
+      path that doesn't resolve to a file or directory (SPA-style fallback).
+    """
+
+    def __init__(self, *, dist: Path, **kwargs):
+        super().__init__(**kwargs)
+        self._dist = dist
+        self._not_found = dist / "404.html"
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        # `path` comes through WITHOUT the leading slash because StaticFiles
+        # is mounted at "/"; e.g. "/api/foo" becomes "api/foo".
+        if path == "api" or path.startswith("api/"):
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Not Found"},
+            )
+
+        # Directory lookup: if the resolved path is a dir and has index.html,
+        # serve the index file with a 200 regardless of trailing-slash state.
+        candidate = (self._dist / path).resolve()
+        try:
+            candidate.relative_to(self._dist.resolve())  # path traversal guard
+        except ValueError:
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        if candidate.is_dir():
+            index = candidate / "index.html"
+            if index.is_file():
+                return FileResponse(index)
+
+        try:
+            return await super().get_response(path, scope)
+        except Exception:
+            if self._not_found.is_file():
+                return FileResponse(self._not_found, status_code=404)
+            raise
 
 
 def _apply_rate_limit_to_track(limiter: Limiter) -> None:
