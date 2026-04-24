@@ -154,6 +154,8 @@ export const copy = {
     loading: 'Зареждане…',
     noTime: '—',
     rider: 'състезател',
+    themeToggleToLight: 'Превключи към светла тема',
+    themeToggleToDark: 'Превключи към тъмна тема',
   },
 
   // SEO title + meta-description templates. English brand "BGX Хард Ендуро"

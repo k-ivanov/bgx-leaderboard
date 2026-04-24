@@ -1,6 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 // BGX tokens — extracted from design-review.md §3.1–§3.6.
-// Any change here is a design-system change and must update design-review.md.
+// As of the light-theme toggle, colors are CSS variables (set in global.css)
+// so the same utility classes (bg-bg-base, text-fg, border-border, …) work in
+// both themes. The variables swap based on `<html class="dark">`.
 
 export default {
   content: ['./src/**/*.{astro,html,vue,ts,tsx,md,mdx}'],
@@ -8,35 +10,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Surfaces — stacked for depth without shadows (flat-dark aesthetic)
         bg: {
-          base: '#0b0d10',       // page background
-          elevated: '#14171c',   // cards, nav, containers
-          muted: '#1a1f26',      // table headers, chips, year-switcher track
+          base: 'var(--color-bg-base)',
+          elevated: 'var(--color-bg-elevated)',
+          muted: 'var(--color-bg-muted)',
         },
         border: {
-          DEFAULT: '#242932',    // card borders, dividers
-          muted: '#1d2128',      // table row dividers
+          DEFAULT: 'var(--color-border)',
+          muted: 'var(--color-border-muted)',
         },
-        // Foreground palette
         fg: {
-          DEFAULT: '#e7ebef',    // body text, rider names
-          muted: '#8891a0',      // secondary text, meta
-          faint: '#5a6472',      // labels, footer (never primary body text — contrast 3.2:1)
+          DEFAULT: 'var(--color-fg)',
+          muted: 'var(--color-fg-muted)',
+          faint: 'var(--color-fg-faint)',
         },
-        // Primary accent — gold/amber (one accent, no secondary colors)
         accent: {
-          DEFAULT: '#f59e0b',
-          strong: '#fbbf24',
-          soft: 'rgba(245, 158, 11, 0.12)',
+          DEFAULT: 'var(--color-accent)',
+          strong: 'var(--color-accent-strong)',
+          soft: 'var(--color-accent-soft)',
         },
-        // Podium metallics — ONLY for 1st/2nd/3rd indicators, never decorative
         podium: {
-          gold: '#fbbf24',
-          silver: '#cbd5e1',
-          bronze: '#f97316',
+          gold: 'var(--color-podium-gold)',
+          silver: 'var(--color-podium-silver)',
+          bronze: 'var(--color-podium-bronze)',
         },
-        danger: '#ef4444',
+        danger: 'var(--color-danger)',
       },
       fontFamily: {
         sans: ["'Inter Variable'", '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],

@@ -36,7 +36,7 @@ const years = [...allYears].sort((a, b) => b - a);
       </div>
     )}
 
-    <div class="flex gap-4 text-[13px] text-fg-muted">
+    <div class="flex items-center gap-4 text-[13px] text-fg-muted">
       <a
         href={`/${activeYear}/expert`}
         class:list={[
@@ -53,6 +53,58 @@ const years = [...allYears].sort((a, b) => b - a);
       >
         {copy.nav.races}
       </a>
+
+      {/* Theme toggle — aria-label flips based on current theme so screen
+         readers announce the correct action. Icon also swaps via CSS classes
+         controlled by `<html class="dark">`. */}
+      <button
+        type="button"
+        data-theme-toggle
+        class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-elevated text-fg-muted transition-colors hover:border-accent hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        aria-label={copy.common.themeToggleToLight}
+        data-label-to-light={copy.common.themeToggleToLight}
+        data-label-to-dark={copy.common.themeToggleToDark}
+      >
+        {/* Sun — visible in dark mode, click to switch to light */}
+        <svg class="h-4 w-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+        </svg>
+        {/* Moon — visible in light mode, click to switch to dark */}
+        <svg class="h-4 w-4 block dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
     </div>
   </div>
+
+  <script is:inline>
+    (function () {
+      var btn = document.querySelector('[data-theme-toggle]');
+      if (!btn) return;
+      var root = document.documentElement;
+
+      function syncLabel() {
+        var isDark = root.classList.contains('dark');
+        btn.setAttribute(
+          'aria-label',
+          isDark
+            ? btn.getAttribute('data-label-to-light')
+            : btn.getAttribute('data-label-to-dark'),
+        );
+      }
+      syncLabel();
+
+      btn.addEventListener('click', function () {
+        var isDark = root.classList.toggle('dark');
+        var value = isDark ? 'dark' : 'light';
+        // 1 year, all paths, lax (no cross-site concerns for a preference)
+        document.cookie =
+          'bgx_theme=' + value +
+          '; max-age=' + (60 * 60 * 24 * 365) +
+          '; path=/; samesite=lax';
+        syncLabel();
+      });
+    })();
+  </script>
 </nav>

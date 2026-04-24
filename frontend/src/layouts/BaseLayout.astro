@@ -58,8 +58,24 @@ const ogImageUrl = ogImage.startsWith('http')
 const appVersion = '0.2.0';
 ---
 <!DOCTYPE html>
-<html lang="bg" class="dark">
+<html lang="bg">
   <head>
+    {/* Early theme init — runs BEFORE any CSS/body paint so the correct
+       theme is applied without a flash of the default. Reads the bgx_theme
+       cookie; falls back to `dark` (the site's canonical look). */}
+    <script is:inline>
+      (function () {
+        try {
+          var m = document.cookie.match(/(?:^|; )bgx_theme=([^;]+)/);
+          var theme = m ? decodeURIComponent(m[1]) : 'dark';
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (_) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
