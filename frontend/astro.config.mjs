@@ -29,8 +29,11 @@ export default defineConfig({
       proxy: {
         // Dev: the Astro dev server proxies /api/* to the FastAPI backend
         // so `fetch('/api/…')` works the same in dev and in production.
+        // Use 127.0.0.1 (not `localhost`): Node ≥17 resolves `localhost`
+        // to IPv6 ::1 first, but uvicorn binds IPv4 only by default, so
+        // the proxy gets ECONNREFUSED and every /api/track call drops.
         '/api': {
-          target: process.env.API_URL || 'http://localhost:5001',
+          target: process.env.API_URL || 'http://127.0.0.1:5001',
           changeOrigin: true,
         },
       },

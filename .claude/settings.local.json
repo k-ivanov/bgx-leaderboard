@@ -45,7 +45,15 @@
       "Bash(python3 *)",
       "Read(//tmp/**)",
       "Bash(git *)",
-      "WebFetch(domain:hardendurobotevgrad.com)"
+      "WebFetch(domain:hardendurobotevgrad.com)",
+      "Bash(awk -F',' 'NR>1 {print $4}' /Users/konstantinivanov/Work/bgx-navigation-dashboard/seed_data/2026/hard_enduro_buhovo_2026-day1.csv)",
+      "Bash(./.venv/bin/python -m scripts.import_race_day ../seed_data/2026/hard_enduro_buhovo_2026-day1.csv)",
+      "Bash(./.venv/bin/python -m scripts.import_race_day --file ../seed_data/2026/hard_enduro_buhovo_2026-day1.csv)",
+      "Bash(awk -F',' 'NR>1 {print $5}' /Users/konstantinivanov/Work/bgx-navigation-dashboard/seed_data/2026/hard_enduro_buhovo_2026-day1.csv)",
+      "Bash(kill 68231)",
+      "Bash(nohup npm *)",
+      "Bash(./.venv/bin/python *)",
+      "Bash(STATS_PASSWORD=test123 ADMIN_PASSWORD=letmein .venv/bin/uvicorn app.main:app *)"
     ]
   }
 }
