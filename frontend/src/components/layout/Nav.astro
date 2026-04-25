@@ -1,5 +1,7 @@
 ---
+import { Image } from 'astro:assets';
 import { copy } from '~/lib/copy';
+import logoHeader from '~/assets/logos/logo-header-200w.webp';
 
 interface Props {
   year: number;
@@ -13,9 +15,21 @@ const years = [...allYears].sort((a, b) => b - a);
 ---
 <nav class="sticky top-0 z-20 border-b border-border bg-bg-base/90 backdrop-blur nav">
   <div class="max-w-container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
-    <a href="/" class="text-[15px] font-extrabold tracking-tight">
-      <span>{copy.app.brand.replace('.', '')}</span><span class="text-accent">.</span>
-      <span class="ml-1 font-normal text-fg-muted">{copy.app.brandSubtitle}</span>
+    <a href="/" class="flex items-center gap-2.5 text-[15px] font-extrabold tracking-tight">
+      <Image
+        src={logoHeader}
+        alt=""
+        width={36}
+        height={42}
+        densities={[1, 2, 3]}
+        loading="eager"
+        decoding="sync"
+        class="h-9 w-auto flex-none"
+      />
+      <span class="leading-none">
+        <span>{copy.app.brand.replace('.', '')}</span><span class="text-accent">.</span>
+        <span class="ml-1 font-normal text-fg-muted">{copy.app.brandSubtitle}</span>
+      </span>
     </a>
 
     {years.length > 0 && (
