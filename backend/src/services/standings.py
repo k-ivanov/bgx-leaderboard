@@ -11,6 +11,19 @@ Points are converted to a position via the BGX championship points table
 
 For 2026+ per-event data, EventResult.position is set by the importer and
 is used directly when present.
+
+Scoring policy (improvements.md P2 #12 — full text in docs/scoring.md):
+  Each (rider, event) pair sums every EventResult row across all `day`
+  values. A two-day weekend produces ONE event total equal to day-1 +
+  day-2 + … . This is deliberate — the dashboard is an archive of every
+  result the championship publishes, not a faithful mirror of any
+  single scoring rule. The validation report at
+  .reports/2025-validation-vs-hardendurobulgaria.md quantifies the
+  resulting deltas vs sources that use day-1-only.
+
+  To switch to day-1-only without breaking the archive: add a `?day=1`
+  query param at the API layer that filters EventResult.day == 1 and
+  document the new behavior in docs/scoring.md.
 """
 
 from dataclasses import dataclass
