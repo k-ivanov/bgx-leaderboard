@@ -149,14 +149,25 @@ def _parse_time_ms(v: Optional[str]) -> Optional[int]:
     return int(total_seconds * 1000)
 
 
+_TIME_TOKEN_RE = re.compile(r"^\d+:\d{2}:\d{2}(?:\.\d+)?$")
+
+
 def _split_name(full: str) -> tuple[str, str]:
     """Split "Станислав КИРИЛОВ" → ("Станислав", "КИРИЛОВ").
 
     Heuristic: last name is the run of words that are ALL UPPERCASE (Bulgarian
     convention for last names in these CSVs). Everything before that is the
     first name. If no uppercase run, fall back to last whitespace split.
+
+    Defensive: trailing tokens that look like a wall-clock time
+    (HH:MM:SS or HH:MM:SS.x) are stripped — they are leakage from a
+    misaligned CSV cell, not part of the rider's name. Without this we
+    end up with rows like "Георги ГЕОРГИЕВ 3:34:40.7" in the rider table.
     """
     tokens = full.strip().split()
+    # Strip trailing time tokens.
+    while tokens and _TIME_TOKEN_RE.match(tokens[-1]):
+        tokens.pop()
     if not tokens:
         return "", ""
     # Find first token that is fully uppercase (Cyrillic or Latin).
