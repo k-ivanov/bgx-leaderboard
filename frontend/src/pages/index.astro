@@ -21,24 +21,10 @@ try {
   for (const s of seasons) {
     try {
       const detail = await api.getSeason(s.year);
-      const firstCategory = detail.categories[0]?.code ?? null;
-      // Rough rider count: sum the leaderboard rows for every category. For
-      // speed, use the first category's size as an approximation — most
-      // riders show up there. If that's not enough, we can wire an API
-      // endpoint later.
-      let riders = 0;
-      if (firstCategory) {
-        try {
-          // Instead of firing 7 requests per season, pull the first category
-          // only and use it as a rough "active rider" signal.
-          const lb = await api.getLeaderboard(s.year, firstCategory);
-          riders = lb.rows.length;
-        } catch { /* ignore */ }
-      }
       perSeason[s.year] = {
-        riders,
+        riders: detail.rider_count,
         races: detail.events.length,
-        firstCategory,
+        firstCategory: detail.categories[0]?.code ?? null,
       };
     } catch {
       perSeason[s.year] = { riders: 0, races: 0, firstCategory: null };
@@ -63,6 +49,7 @@ const description =
   activeYear={headNavYear}
   allYears={allYears}
   currentNav="none"
+  trackPage="home"
 >
   <section class="mx-auto max-w-3xl py-8 md:py-12">
     <h1 class="text-3xl md:text-5xl font-extrabold tracking-[-0.02em]">

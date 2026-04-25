@@ -32,6 +32,12 @@ const allYears = seasons.seasons.map(s => s.year);
 const desktopCount = stats?.devices.find(d => d.device_type === 'desktop')?.count ?? 0;
 const mobileCount = stats?.devices.find(d => d.device_type === 'mobile')?.count ?? 0;
 const unknownCount = stats?.devices.find(d => d.device_type === 'unknown')?.count ?? 0;
+
+const avgSessionSeconds = stats?.avg_session_seconds ?? 0;
+const avgSessionDisplay =
+  avgSessionSeconds >= 60
+    ? `${Math.round(avgSessionSeconds / 60)}m ${Math.round(avgSessionSeconds % 60)}s`
+    : `${Math.round(avgSessionSeconds)}s`;
 ---
 <BaseLayout
   title={copy.seo.statsTitle}
@@ -41,6 +47,7 @@ const unknownCount = stats?.devices.find(d => d.device_type === 'unknown')?.coun
   activeYear={year}
   allYears={allYears}
   currentNav="stats"
+  trackPage="stats"
 >
   <section class="page-header mb-8">
     <h1 class="text-2xl md:text-[32px] font-extrabold tracking-[-0.02em]">
@@ -56,6 +63,12 @@ const unknownCount = stats?.devices.find(d => d.device_type === 'unknown')?.coun
         <StatCard label={copy.stats.statDesktop} value={desktopCount} />
         <StatCard label={copy.stats.statMobile} value={mobileCount} />
         <StatCard label={copy.stats.statUnknown} value={unknownCount} />
+      </section>
+
+      <section class="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard label={copy.stats.statUniqueToday} value={stats.unique_visitors_today} />
+        <StatCard label={copy.stats.statSessionsToday} value={stats.sessions_today} />
+        <StatCard label={copy.stats.statAvgSession} value={avgSessionDisplay} />
       </section>
 
       <section class="mb-10">
@@ -80,6 +93,76 @@ const unknownCount = stats?.devices.find(d => d.device_type === 'unknown')?.coun
                     <td class="px-3 py-3 text-right mono">{c.count}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section class="mb-10">
+        <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.stats.sectionByRace}</h2>
+        {stats.per_race.length === 0 ? (
+          <EmptyState message={copy.stats.empty} />
+        ) : (
+          <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-bg-muted">
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.stats.colRace}</th>
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.stats.colSeason}</th>
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.stats.colVisits}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.per_race.map(r => (
+                  <tr class="border-b border-border-muted">
+                    <td class="px-3 py-3">
+                      {r.season_year != null ? (
+                        <a class="hover:text-accent" href={`/${r.season_year}/events/${r.event_slug}`}>{r.event_slug}</a>
+                      ) : r.event_slug}
+                    </td>
+                    <td class="px-3 py-3 text-center mono">{r.season_year ?? '—'}</td>
+                    <td class="px-3 py-3 text-right mono">{r.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section class="mb-10">
+        <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.stats.sectionByRider}</h2>
+        {stats.per_rider.length === 0 ? (
+          <EmptyState message={copy.stats.empty} />
+        ) : (
+          <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-bg-muted">
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.stats.colRider}</th>
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.stats.colSeason}</th>
+                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.stats.colVisits}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.per_rider.map(r => {
+                  const parts = r.rider_slug.split('-');
+                  const raceNum = Number(parts[0]);
+                  const tail = parts.slice(1).join('-');
+                  const href = r.season_year != null && !Number.isNaN(raceNum) && tail
+                    ? `/${r.season_year}/r/${raceNum}/${encodeURIComponent(tail)}`
+                    : null;
+                  return (
+                    <tr class="border-b border-border-muted">
+                      <td class="px-3 py-3">
+                        {href ? <a class="hover:text-accent" href={href}>{r.rider_slug}</a> : r.rider_slug}
+                      </td>
+                      <td class="px-3 py-3 text-center mono">{r.season_year ?? '—'}</td>
+                      <td class="px-3 py-3 text-right mono">{r.count}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

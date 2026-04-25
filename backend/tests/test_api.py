@@ -62,6 +62,8 @@ def test_get_season_detail_2025() -> None:
     assert len(body["categories"]) >= 5  # expect all 2025 categories
     assert any(c["code"] == "expert" for c in body["categories"])
     assert len(body["events"]) >= 5
+    # rider_count is the season-wide sum across every category.
+    assert body["rider_count"] > 0
 
 
 def test_get_season_detail_404_for_missing_year() -> None:
@@ -220,7 +222,12 @@ def test_stats_is_accessible_in_dev_mode() -> None:
     assert response.status_code == 200
     body = response.json()
     assert "total_visits" in body
+    assert "unique_visitors_today" in body
+    assert "sessions_today" in body
+    assert "avg_session_seconds" in body
     assert isinstance(body["devices"], list)
+    assert isinstance(body["per_race"], list)
+    assert isinstance(body["per_rider"], list)
     assert isinstance(body["recent"], list)
 
 

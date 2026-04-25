@@ -64,6 +64,8 @@ const description = copy.seo.leaderboardDescription(
   activeYear={yearNum}
   allYears={allYears}
   currentNav="leaderboard"
+  trackPage="leaderboard"
+  trackCategory={category}
 >
   <section class="page-header mb-8">
     <h1 class="text-2xl md:text-[32px] font-extrabold tracking-[-0.02em]">
@@ -85,8 +87,8 @@ const description = copy.seo.leaderboardDescription(
         label={copy.leaderboard.statRaces}
         value={`${racesCompleted} of ${events.length}`}
       />
-      <StatCard label={copy.leaderboard.statGap} value={`${gap} pts`} />
-      <StatCard label={copy.leaderboard.statActive} value={rows.length} />
+      <StatCard label={copy.leaderboard.statGap} value={`${gap} точки`} />
+      <StatCard label={copy.leaderboard.statActive} value={detail.rider_count} />
     </section>
   )}
 

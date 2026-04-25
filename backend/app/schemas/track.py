@@ -15,6 +15,8 @@ class TrackIn(BaseModel):
     page: str = Field(..., min_length=1, max_length=64)
     category: Optional[str] = Field(default=None, max_length=64)
     season_year: Optional[int] = Field(default=None, ge=1900, le=2999)
+    event_slug: Optional[str] = Field(default=None, max_length=64)
+    rider_slug: Optional[str] = Field(default=None, max_length=128)
 
 
 class TrackOut(BaseModel):

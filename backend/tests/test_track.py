@@ -74,6 +74,80 @@ def test_track_rejects_extra_fields() -> None:
     assert response.status_code == 422
 
 
+def test_track_stamps_visitor_and_session_ids() -> None:
+    """Every Visit row gets a non-empty visitor_id + session_id."""
+    from src.analytics import _reset_salt_cache_for_tests
+    _reset_salt_cache_for_tests()
+
+    response = client.post(
+        "/api/track",
+        json={"page": "leaderboard", "season_year": 2026},
+        headers={"User-Agent": "Mozilla/5.0 (X11; Linux) Chrome/120"},
+    )
+    assert response.status_code == 200
+
+    with get_session() as session:
+        latest = session.execute(
+            select(Visit).order_by(Visit.timestamp.desc()).limit(1)
+        ).scalar_one()
+        assert latest.visitor_id != ""
+        assert len(latest.visitor_id) == 16
+        assert latest.session_id != ""
+
+
+def test_track_reuses_session_for_repeat_visitor() -> None:
+    """Same (IP, UA) within 30 min → same session_id."""
+    from src.analytics import _reset_salt_cache_for_tests
+    _reset_salt_cache_for_tests()
+
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux) Chrome/120"}
+    r1 = client.post("/api/track", json={"page": "home"}, headers=headers)
+    r2 = client.post("/api/track", json={"page": "leaderboard"}, headers=headers)
+    assert r1.status_code == r2.status_code == 200
+
+    with get_session() as session:
+        rows = list(
+            session.execute(
+                select(Visit).order_by(Visit.timestamp.desc()).limit(2)
+            ).scalars()
+        )
+        assert rows[0].visitor_id == rows[1].visitor_id
+        assert rows[0].session_id == rows[1].session_id
+
+
+def test_track_persists_event_and_rider_slugs() -> None:
+    response = client.post(
+        "/api/track",
+        json={
+            "page": "race",
+            "season_year": 2026,
+            "event_slug": "kyrnare",
+        },
+    )
+    assert response.status_code == 200
+
+    rider_response = client.post(
+        "/api/track",
+        json={
+            "page": "rider",
+            "season_year": 2026,
+            "rider_slug": "42-ivan-ivanov",
+        },
+    )
+    assert rider_response.status_code == 200
+
+    with get_session() as session:
+        rider_row = session.execute(
+            select(Visit).where(Visit.page == "rider").order_by(Visit.timestamp.desc()).limit(1)
+        ).scalar_one()
+        assert rider_row.rider_slug == "42-ivan-ivanov"
+
+        race_row = session.execute(
+            select(Visit).where(Visit.page == "race").order_by(Visit.timestamp.desc()).limit(1)
+        ).scalar_one()
+        assert race_row.event_slug == "kyrnare"
+
+
 @pytest.mark.parametrize(
     "bad_payload",
     [

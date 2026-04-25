@@ -33,6 +33,10 @@ interface Props {
   allYears: number[];
   currentNav: 'leaderboard' | 'races' | 'stats' | 'rider' | 'none';
   jsonLd?: object;
+  trackPage: 'home' | 'leaderboard' | 'race' | 'rider' | 'races_list' | 'stats' | 'other';
+  trackCategory?: string | null;
+  trackEventSlug?: string | null;
+  trackRiderSlug?: string | null;
 }
 
 const {
@@ -46,7 +50,19 @@ const {
   allYears,
   currentNav,
   jsonLd,
+  trackPage,
+  trackCategory = null,
+  trackEventSlug = null,
+  trackRiderSlug = null,
 } = Astro.props;
+
+const trackPayload = {
+  page: trackPage,
+  category: trackCategory,
+  season_year: year,
+  event_slug: trackEventSlug,
+  rider_slug: trackRiderSlug,
+};
 
 const site = Astro.site?.toString().replace(/\/+$/, '') ?? '';
 const pathname = Astro.url.pathname.replace(/\/+$/, '') || '/';
@@ -117,5 +133,20 @@ const appVersion = '0.2.0';
       <slot />
     </main>
     <Footer appVersion={appVersion} />
+    {/* Cookieless visit tracking — posts once per page load. No cookies,
+       no localStorage, no sessionStorage: visitor_id is derived server-side
+       from a daily-rotating salt, so ePrivacy consent is not required. */}
+    <script is:inline define:vars={{ trackPayload }}>
+      (function () {
+        try {
+          fetch('/api/track', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(trackPayload),
+            keepalive: true,
+          }).catch(function () { /* fire-and-forget */ });
+        } catch (_) { /* never break the page for analytics */ }
+      })();
+    </script>
   </body>
 </html>
