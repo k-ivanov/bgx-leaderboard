@@ -2,6 +2,7 @@
 import { Image } from 'astro:assets';
 import { copy } from '~/lib/copy';
 import logoHeader from '~/assets/logos/logo-header-200w.webp';
+import RiderSearch from '~/components/RiderSearch.vue';
 
 interface Props {
   year: number;
@@ -51,6 +52,7 @@ const years = [...allYears].sort((a, b) => b - a);
     )}
 
     <div class="flex items-center gap-4 text-[13px] text-fg-muted">
+      <RiderSearch defaultYear={activeYear} client:only="vue" />
       <a
         href={`/${activeYear}/expert`}
         class:list={[

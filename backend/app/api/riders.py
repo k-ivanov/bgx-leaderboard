@@ -1,13 +1,14 @@
 """Rider endpoints.
 
-- GET /api/seasons/{year}/riders/{race_number}         → disambiguation list (1+ candidates)
-- GET /api/seasons/{year}/riders/{race_number}/{slug}  → singular rider profile
+- GET /api/seasons/{year}/riders/search?q=…             → fuzzy match (P3 #16)
+- GET /api/seasons/{year}/riders/{race_number}          → disambiguation list (1+ candidates)
+- GET /api/seasons/{year}/riders/{race_number}/{slug}   → singular rider profile
 """
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_season, get_session
@@ -22,15 +23,89 @@ from app.schemas.riders import (
     RiderDisambigOut,
     RiderProfileOut,
     RiderResultOut,
+    RiderSearchOut,
+    RiderSearchResultOut,
 )
 from app.slug import rider_slug
-from src.db.models import Rider, Season
+from src.db.models import Category, Rider, Season
 from src.services.rider import (
     get_rider_profile,
     riders_sharing_number,
 )
 
 router = APIRouter(prefix="/api/seasons", tags=["riders"])
+
+
+@router.get(
+    "/{year}/riders/search",
+    response_model=RiderSearchOut,
+)
+def search_riders(
+    q: str = Query(..., min_length=1, max_length=64),
+    limit: int = Query(10, ge=1, le=50),
+    season: Season = Depends(get_season),
+    session: Session = Depends(get_session),
+) -> RiderSearchOut:
+    """Case-insensitive substring match on first_name, last_name, race_number.
+
+    Returns at most `limit` results, ranked by best-match heuristic:
+      1. exact race_number match (numeric query) first;
+      2. then last_name prefix match;
+      3. then first_name prefix match;
+      4. then everything else.
+    """
+    needle = q.strip()
+    if not needle:
+        return RiderSearchOut(season=SeasonRef.model_validate(season), query=q, results=[])
+
+    pattern = f"%{needle.lower()}%"
+    base_q = (
+        select(Rider, Category)
+        .join(Category, Rider.category_id == Category.id)
+        .where(Rider.season_id == season.id)
+    )
+
+    # Build the OR — if needle parses as int, also match race_number.
+    conditions = [
+        Rider.first_name.ilike(pattern),
+        Rider.last_name.ilike(pattern),
+    ]
+    try:
+        rn = int(needle)
+        conditions.append(Rider.race_number == rn)
+    except ValueError:
+        pass
+
+    candidates = list(session.execute(base_q.where(or_(*conditions))).all())
+
+    # Rank: see docstring above.
+    needle_lower = needle.lower()
+    def _rank(pair: tuple[Rider, Category]) -> tuple[int, str]:
+        rider, _cat = pair
+        if needle.isdigit() and rider.race_number == int(needle):
+            return (0, rider.last_name.lower())
+        if rider.last_name.lower().startswith(needle_lower):
+            return (1, rider.last_name.lower())
+        if rider.first_name.lower().startswith(needle_lower):
+            return (2, rider.last_name.lower())
+        return (3, rider.last_name.lower())
+
+    candidates.sort(key=_rank)
+    candidates = candidates[:limit]
+
+    results = [
+        RiderSearchResultOut(
+            rider=build_rider_ref(rider),
+            category=CategoryRef.model_validate(cat),
+            season_year=season.year,
+        )
+        for rider, cat in candidates
+    ]
+    return RiderSearchOut(
+        season=SeasonRef.model_validate(season),
+        query=q,
+        results=results,
+    )
 
 
 @router.get(
