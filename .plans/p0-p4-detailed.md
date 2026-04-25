@@ -40,22 +40,11 @@ These shape every item. Confirmed before execution started:
 
 ## P0 — Bugs / regressions
 
-### P0 #1 — Fix pytest collection
+### P0 #1 — ~~Fix pytest collection~~ — **FALSE ALARM, no commit**
 
-**Problem.** `pytest --collect-only` errors on 4 modules (`test_api`, `test_cors`, `test_mount_order`, `test_track`) because `app.main` imports `app.admin`, which imports `sqladmin`, which is not in the backend's installed deps. Result: only 22/64 tests collect. CLAUDE.md still claims 64 tests.
+**Status.** `sqladmin>=0.19` is already in `backend/pyproject.toml` and installed in the venv (0.25.0). All 63 tests collect and pass cleanly when pytest is run from the right cwd. The "4 collection errors" reported in `.plans/improvements.md` came from a stale shell session where `cd` had been lost. Verified: `cd backend && .venv/bin/pytest -q` → `63 passed`.
 
-**Design.** Add `sqladmin` to `backend/pyproject.toml` `[project] dependencies`. Run `pip install -e .` to refresh the venv. Verify `pytest --collect-only -q` reports the original test count and zero collection errors.
-
-**Files.**
-- `backend/pyproject.toml` — append `sqladmin>=0.18.0` to dependencies.
-
-**Verification.**
-```bash
-cd backend && .venv/bin/pip install -e . && .venv/bin/pytest --collect-only -q | tail -3
-# expect: ~64 tests collected, 0 errors
-```
-
-**Commit.** `fix(deps): add sqladmin to backend deps so pytest collects all 64 tests`
+No code change needed.
 
 ---
 

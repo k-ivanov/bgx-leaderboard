@@ -174,6 +174,24 @@ class Visit(Base):
     )
 
 
+class ImportLog(Base):
+    """One row per seed_data CSV that has been imported into the DB.
+
+    Used by `make seed-new` (scripts/seed_new.py) to skip files that were
+    already imported. Match key is (source_filename, sha256) so a file
+    rewritten with new content imports again as a fresh row.
+    """
+    __tablename__ = "import_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    rows_imported: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
 class AnalyticsSalt(Base):
     """Daily salt used to compute pseudonymous visitor IDs.
 
