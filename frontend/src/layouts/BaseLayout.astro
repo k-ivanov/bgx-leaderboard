@@ -78,18 +78,16 @@ const appVersion = '0.2.0';
   <head>
     {/* Early theme init — runs BEFORE any CSS/body paint so the correct
        theme is applied without a flash of the default. Reads the bgx_theme
-       cookie; falls back to `dark` (the site's canonical look). */}
+       cookie; falls back to `light`. */}
     <script is:inline>
       (function () {
         try {
           var m = document.cookie.match(/(?:^|; )bgx_theme=([^;]+)/);
-          var theme = m ? decodeURIComponent(m[1]) : 'dark';
+          var theme = m ? decodeURIComponent(m[1]) : 'light';
           if (theme === 'dark') {
             document.documentElement.classList.add('dark');
           }
-        } catch (_) {
-          document.documentElement.classList.add('dark');
-        }
+        } catch (_) { /* default = light, no class needed */ }
       })();
     </script>
     <meta charset="utf-8" />
@@ -103,7 +101,7 @@ const appVersion = '0.2.0';
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#0b0d10" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
 
     <meta property="og:type" content="website" />
