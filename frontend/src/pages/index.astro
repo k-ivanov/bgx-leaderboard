@@ -2,10 +2,12 @@
 // Landing page — welcome + unofficial disclaimer + season picker.
 // No automatic redirect; users pick a season consciously.
 
+import { Image } from 'astro:assets';
 import BaseLayout from '~/layouts/BaseLayout.astro';
 import { copy } from '~/lib/copy';
 import { api } from '~/lib/api';
 import type { SeasonRef } from '~/lib/api.types';
+import logoHero from '~/assets/logos/logo-hero-1200w.webp';
 
 // Fetch all seasons + summary data at build time so we can render season
 // cards with rider/race counts. Falls back to empty state if the API
