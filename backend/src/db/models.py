@@ -30,8 +30,21 @@ class Season(Base):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # 'aggregate_2025' (legacy season-total CSVs, one event row per race) or
-    # 'per_event' (per-event raw results, app computes standings).
+    # championship_format — how standings are computed for this season.
+    # Supported values:
+    #   'per_event'       (default)  — total = sum of every EventResult
+    #                                  the rider has, no race dropped.
+    #                                  Used by 2024 / 2025 / 2026.
+    #   'aggregate_2025'  (legacy)   — season-total CSVs, one event row
+    #                                  per race; standings come straight
+    #                                  from the import (still no drop).
+    #
+    # NOT implemented (intentional, per docs/scoring.md):
+    #   - drop-worst-when-N-events: hardendurobulgaria.com applies this
+    #     at N=7. We don't, because we are an archive of every result,
+    #     not a mirror of the official scoring. Adding it would mean a
+    #     new enum value (e.g. 'per_event_drop_worst_at_7') plus the
+    #     drop logic in src/services/standings.py.
     championship_format: Mapped[str] = mapped_column(String(32), nullable=False, default="per_event")
 
     categories: Mapped[list["Category"]] = relationship(back_populates="season", cascade="all, delete-orphan")
