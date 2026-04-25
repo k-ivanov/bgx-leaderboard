@@ -158,6 +158,10 @@ seed: seed-all ## Clean DB + re-import every year folder under scripts/seed_data
 seed-all: migrate ## Wipe championship data + import every year folder (keeps visits)
 	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all
 
+.PHONY: seed-new
+seed-new: migrate ## Import every CSV under seed_data/ that is NOT yet logged. Idempotent. Usage: make seed-new [YEAR=2026]
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_new $(if $(YEAR),--year $(YEAR),)
+
 .PHONY: seed-year
 seed-year: migrate ## Import ONLY one year's CSVs (add-only). Usage: make seed-year YEAR=2024
 	@if [ -z "$(YEAR)" ]; then \
