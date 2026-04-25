@@ -171,6 +171,14 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
             )
         )
 
+    # Tiebreaker chain (improvements.md P2 #14 — pinned by tests/test_standings_tiebreakers.py):
+    #   1. Higher total_points wins.
+    #   2. Then better best_position (1 beats 2).
+    #   3. Then FEWER races_participated (more points per race = better
+    #      efficiency). This is non-standard; some championships prefer
+    #      the opposite. If you flip it, update both the test AND
+    #      docs/scoring.md.
+    #   4. Then lower race_number — final stable break, deterministic.
     rows.sort(
         key=lambda r: (-r.total_points, r.best_position, r.races_participated, r.rider.race_number)
     )
