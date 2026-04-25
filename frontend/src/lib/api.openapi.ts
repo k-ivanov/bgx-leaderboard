@@ -297,6 +297,24 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** RaceVisitCount */
+        RaceVisitCount: {
+            /** Season Year */
+            season_year?: number | null;
+            /** Event Slug */
+            event_slug: string;
+            /** Count */
+            count: number;
+        };
+        /** RiderVisitCount */
+        RiderVisitCount: {
+            /** Season Year */
+            season_year?: number | null;
+            /** Rider Slug */
+            rider_slug: string;
+            /** Count */
+            count: number;
+        };
         /** RecentVisit */
         RecentVisit: {
             /**
@@ -310,6 +328,10 @@ export interface components {
             category?: string | null;
             /** Season Year */
             season_year?: number | null;
+            /** Event Slug */
+            event_slug?: string | null;
+            /** Rider Slug */
+            rider_slug?: string | null;
             /** Device Type */
             device_type: string;
         };
@@ -410,6 +432,8 @@ export interface components {
             categories: components["schemas"]["CategoryRef"][];
             /** Events */
             events: components["schemas"]["EventRef"][];
+            /** Rider Count */
+            rider_count: number;
         };
         /** SeasonListOut */
         SeasonListOut: {
@@ -465,10 +489,20 @@ export interface components {
         StatsOut: {
             /** Total Visits */
             total_visits: number;
+            /** Unique Visitors Today */
+            unique_visitors_today: number;
+            /** Sessions Today */
+            sessions_today: number;
+            /** Avg Session Seconds */
+            avg_session_seconds: number;
             /** Devices */
             devices: components["schemas"]["DeviceCount"][];
             /** Per Category */
             per_category: components["schemas"]["CategoryVisitCount"][];
+            /** Per Race */
+            per_race: components["schemas"]["RaceVisitCount"][];
+            /** Per Rider */
+            per_rider: components["schemas"]["RiderVisitCount"][];
             /** Recent */
             recent: components["schemas"]["RecentVisit"][];
         };
@@ -485,6 +519,10 @@ export interface components {
             category?: string | null;
             /** Season Year */
             season_year?: number | null;
+            /** Event Slug */
+            event_slug?: string | null;
+            /** Rider Slug */
+            rider_slug?: string | null;
         };
         /** TrackOut */
         TrackOut: {

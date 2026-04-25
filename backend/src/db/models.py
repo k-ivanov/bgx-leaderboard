@@ -1,6 +1,6 @@
 """SQLAlchemy ORM models for the BGX dashboard."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import (
@@ -163,7 +163,24 @@ class Visit(Base):
     category: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     season_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     device_type: Mapped[str] = mapped_column(String(16), nullable=False, default="unknown")
+    visitor_id: Mapped[str] = mapped_column(String(32), nullable=False, default="", server_default="")
+    session_id: Mapped[str] = mapped_column(String(36), nullable=False, default="", server_default="")
+    event_slug: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    rider_slug: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
 
     __table_args__ = (
         Index("ix_visit_timestamp", "timestamp"),
+        Index("ix_visit_visitor_time", "visitor_id", "timestamp"),
     )
+
+
+class AnalyticsSalt(Base):
+    """Daily salt used to compute pseudonymous visitor IDs.
+
+    Rotates at UTC midnight. Once a day rolls over, previous day's hashes
+    become mathematically unlinkable to today's — even for the operator.
+    """
+    __tablename__ = "analytics_salt"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    salt: Mapped[str] = mapped_column(String(64), nullable=False)

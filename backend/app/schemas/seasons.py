@@ -18,3 +18,4 @@ class SeasonDetailOut(BaseModel):
     season: SeasonRef
     categories: list[CategoryRef]
     events: list[EventRef]
+    rider_count: int

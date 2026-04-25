@@ -91,10 +91,13 @@ export const api = {
     page: string;
     category?: string | null;
     season_year?: number | null;
+    event_slug?: string | null;
+    rider_slug?: string | null;
   }): Promise<{ ok: boolean }> =>
     fetch(`${apiBase()}/api/track`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
+      keepalive: true,
     }).then(r => r.json()),
 };

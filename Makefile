@@ -263,7 +263,7 @@ smoke: ## Hit the headline endpoints and print a brief report
 	@printf "\n$(C_BOLD)/api/seasons$(C_RESET)\n"
 	@curl -s $(API_URL)/api/seasons | $(PYTHON) -m json.tool | head -8
 	@printf "\n$(C_BOLD)/api/seasons/2025/standings/expert (leader)$(C_RESET)\n"
-	@curl -s $(API_URL)/api/seasons/2025/standings/expert | $(PYTHON) -c "import json,sys; d=json.load(sys.stdin); r=d['rows'][0]; print(f'  #{r[\"rider\"][\"race_number\"]} {r[\"rider\"][\"first_name\"]} {r[\"rider\"][\"last_name\"]} — {r[\"total_points\"]} pts')"
+	@curl -s $(API_URL)/api/seasons/2025/standings/expert | $(PYTHON) -c "import json,sys; d=json.load(sys.stdin); r=d['rows'][0]; print(f'  #{r[\"rider\"][\"race_number\"]} {r[\"rider\"][\"first_name\"]} {r[\"rider\"][\"last_name\"]} — {r[\"total_points\"]} точки')"
 	@printf "\n$(C_BOLD)/api/nonexistent (should be JSON 404)$(C_RESET)\n"
 	@curl -sw "  [%{http_code} %{content_type}]\n" $(API_URL)/api/nonexistent
 
