@@ -1,43 +1,22 @@
 ---
 // StatsView — /stats (private analytics)
-// - <meta name="robots" content="noindex, nofollow">
-// - HTTP Basic auth enforced server-side by FastAPI (eng-review SC-1)
-// See design-review.md §4.6 + §11.
+//
+// The static HTML ships ZERO data. A Vue island fetches /api/stats from
+// the browser; if STATS_PASSWORD is configured server-side, the API
+// returns 401 and the island shows an inline login form. Credentials
+// are kept in sessionStorage so they vanish when the tab closes.
+//
+// noindex/nofollow + robots.txt Disallow keep the URL out of search.
 
 import BaseLayout from '~/layouts/BaseLayout.astro';
-import StatCard from '~/components/common/StatCard.astro';
-import EmptyState from '~/components/common/EmptyState.astro';
+import StatsView from '~/components/StatsView.vue';
 import { copy } from '~/lib/copy';
 import { api } from '~/lib/api';
 
-// Fetch stats at build time — this embeds a snapshot in the static HTML,
-// which is acceptable for a developer-facing dashboard refreshed on rebuild.
-// If STATS_PASSWORD is set on the build environment, set an Authorization
-// header is not straightforward from a static build. For dev/internal use,
-// build without STATS_PASSWORD; in production Railway sets the env var and
-// the /stats page should be rebuilt by a scheduled job if the snapshot needs
-// to be fresh. Alternative: switch /stats to SSR/ISR later (out of scope).
-let stats: Awaited<ReturnType<typeof api.getStats>> | null = null;
-try {
-  stats = await api.getStats();
-} catch {
-  stats = null;
-}
-
 const seasons = await api.listSeasons();
 const current = seasons.seasons.find(s => s.is_current) ?? seasons.seasons[0];
-const year = current?.year ?? 2026;
+const year = current?.year ?? new Date().getFullYear();
 const allYears = seasons.seasons.map(s => s.year);
-
-const desktopCount = stats?.devices.find(d => d.device_type === 'desktop')?.count ?? 0;
-const mobileCount = stats?.devices.find(d => d.device_type === 'mobile')?.count ?? 0;
-const unknownCount = stats?.devices.find(d => d.device_type === 'unknown')?.count ?? 0;
-
-const avgSessionSeconds = stats?.avg_session_seconds ?? 0;
-const avgSessionDisplay =
-  avgSessionSeconds >= 60
-    ? `${Math.round(avgSessionSeconds / 60)}m ${Math.round(avgSessionSeconds % 60)}s`
-    : `${Math.round(avgSessionSeconds)}s`;
 ---
 <BaseLayout
   title={copy.seo.statsTitle}
@@ -56,148 +35,5 @@ const avgSessionDisplay =
     <p class="mt-2 text-[15px] text-fg-muted">{copy.stats.subtitleLast30}</p>
   </section>
 
-  {stats ? (
-    <>
-      <section class="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label={copy.stats.statVisits} value={stats.total_visits} />
-        <StatCard label={copy.stats.statDesktop} value={desktopCount} />
-        <StatCard label={copy.stats.statMobile} value={mobileCount} />
-        <StatCard label={copy.stats.statUnknown} value={unknownCount} />
-      </section>
-
-      <section class="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard label={copy.stats.statUniqueToday} value={stats.unique_visitors_today} />
-        <StatCard label={copy.stats.statSessionsToday} value={stats.sessions_today} />
-        <StatCard label={copy.stats.statAvgSession} value={avgSessionDisplay} />
-      </section>
-
-      <section class="mb-10">
-        <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.stats.sectionByCategory}</h2>
-        {stats.per_category.length === 0 ? (
-          <EmptyState message={copy.stats.empty} />
-        ) : (
-          <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-bg-muted">
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.stats.colCategory}</th>
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.stats.colSeason}</th>
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.stats.colVisits}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.per_category.map(c => (
-                  <tr class="border-b border-border-muted">
-                    <td class="px-3 py-3">{c.category ?? '—'}</td>
-                    <td class="px-3 py-3 text-center mono">{c.season_year ?? '—'}</td>
-                    <td class="px-3 py-3 text-right mono">{c.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section class="mb-10">
-        <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.stats.sectionByRace}</h2>
-        {stats.per_race.length === 0 ? (
-          <EmptyState message={copy.stats.empty} />
-        ) : (
-          <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-bg-muted">
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.stats.colRace}</th>
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.stats.colSeason}</th>
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.stats.colVisits}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.per_race.map(r => (
-                  <tr class="border-b border-border-muted">
-                    <td class="px-3 py-3">
-                      {r.season_year != null ? (
-                        <a class="hover:text-accent" href={`/${r.season_year}/events/${r.event_slug}`}>{r.event_slug}</a>
-                      ) : r.event_slug}
-                    </td>
-                    <td class="px-3 py-3 text-center mono">{r.season_year ?? '—'}</td>
-                    <td class="px-3 py-3 text-right mono">{r.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section class="mb-10">
-        <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.stats.sectionByRider}</h2>
-        {stats.per_rider.length === 0 ? (
-          <EmptyState message={copy.stats.empty} />
-        ) : (
-          <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-bg-muted">
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.stats.colRider}</th>
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.stats.colSeason}</th>
-                  <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.stats.colVisits}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.per_rider.map(r => {
-                  const parts = r.rider_slug.split('-');
-                  const raceNum = Number(parts[0]);
-                  const tail = parts.slice(1).join('-');
-                  const href = r.season_year != null && !Number.isNaN(raceNum) && tail
-                    ? `/${r.season_year}/r/${raceNum}/${encodeURIComponent(tail)}`
-                    : null;
-                  return (
-                    <tr class="border-b border-border-muted">
-                      <td class="px-3 py-3">
-                        {href ? <a class="hover:text-accent" href={href}>{r.rider_slug}</a> : r.rider_slug}
-                      </td>
-                      <td class="px-3 py-3 text-center mono">{r.season_year ?? '—'}</td>
-                      <td class="px-3 py-3 text-right mono">{r.count}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section>
-        <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.stats.sectionRecent}</h2>
-        <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="bg-bg-muted">
-                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.stats.colTime}</th>
-                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.stats.colPage}</th>
-                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.stats.colCategory}</th>
-                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.stats.colSeason}</th>
-                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.stats.colDevice}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.recent.map(v => (
-                <tr class="border-b border-border-muted">
-                  <td class="px-3 py-3 mono">{new Date(v.timestamp).toISOString().replace('T', ' ').slice(0, 16)}</td>
-                  <td class="px-3 py-3">{v.page}</td>
-                  <td class="px-3 py-3">{v.category ?? '—'}</td>
-                  <td class="px-3 py-3 text-center mono">{v.season_year ?? '—'}</td>
-                  <td class="px-3 py-3 text-center">{v.device_type}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
-  ) : (
-    <EmptyState message={copy.stats.unavailable} />
-  )}
+  <StatsView client:only="vue" />
 </BaseLayout>

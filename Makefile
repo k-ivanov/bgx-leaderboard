@@ -98,12 +98,14 @@ dev: ## Run backend + frontend in the foreground (Ctrl-C stops both)
 	  wait
 
 .PHONY: dev-backend
-dev-backend: $(BACKEND)/$(VENV)/.installed-backend ## Start FastAPI (uvicorn --reload) on :5001 — admin enabled with dev password
+dev-backend: $(BACKEND)/$(VENV)/.installed-backend ## Start FastAPI (uvicorn --reload) on :5001 — admin + stats enabled with dev password
 	@printf "$(C_GOLD)→$(C_RESET) admin: http://$(HOST):$(PORT)/admin   user=admin   pass=$${ADMIN_PASSWORD:-letmein}\n"
+	@printf "$(C_GOLD)→$(C_RESET) stats: http://$(HOST):$(PORT)/stats   user=admin   pass=$${STATS_PASSWORD:-letmein}\n"
 	@cd $(BACKEND) && \
 	  . $(VENV)/bin/activate && \
 	  PORT=$(PORT) HOST=$(HOST) \
 	  ADMIN_PASSWORD=$${ADMIN_PASSWORD:-letmein} \
+	  STATS_PASSWORD=$${STATS_PASSWORD:-letmein} \
 	  uvicorn app.main:app --host $(HOST) --port $(PORT) --reload
 
 .PHONY: dev-frontend
