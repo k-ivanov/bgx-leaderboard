@@ -3,11 +3,12 @@
 // /api/stats from the browser and either renders the dashboard or pops an
 // inline login form when the API returns 401. Credentials are kept in
 // sessionStorage so they vanish when the tab closes.
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import type { StatsOut } from '~/lib/api.types';
 import { copy } from '~/lib/copy';
 
 const STORAGE_KEY = 'bgx_stats_auth';
+const REFRESH_MS = 60_000;
 
 const stats = ref<StatsOut | null>(null);
 const loading = ref(true);
@@ -16,14 +17,19 @@ const authError = ref(false);
 const username = ref('admin');
 const password = ref('');
 const submitting = ref(false);
+const lastUpdated = ref<Date | null>(null);
+
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 function authHeader(): Record<string, string> {
   const v = sessionStorage.getItem(STORAGE_KEY);
   return v ? { Authorization: 'Basic ' + v } : {};
 }
 
-async function load() {
-  loading.value = true;
+async function load(opts: { silent?: boolean } = {}) {
+  // `silent` skips the loading flag — used by the auto-refresh timer so the
+  // UI doesn't flash a "Зареждане…" placeholder every 60s.
+  if (!opts.silent) loading.value = true;
   authError.value = false;
   try {
     const res = await fetch('/api/stats', {
@@ -33,6 +39,7 @@ async function load() {
       sessionStorage.removeItem(STORAGE_KEY);
       needsAuth.value = true;
       stats.value = null;
+      stopAutoRefresh();
       return;
     }
     if (!res.ok) {
@@ -41,10 +48,33 @@ async function load() {
       return;
     }
     stats.value = (await res.json()) as StatsOut;
+    lastUpdated.value = new Date();
     needsAuth.value = false;
+    startAutoRefresh();
   } finally {
-    loading.value = false;
+    if (!opts.silent) loading.value = false;
   }
+}
+
+function startAutoRefresh() {
+  if (refreshTimer != null) return;
+  refreshTimer = setInterval(() => {
+    void load({ silent: true });
+  }, REFRESH_MS);
+}
+
+function stopAutoRefresh() {
+  if (refreshTimer != null) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
+function formatLastUpdated(d: Date): string {
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
 }
 
 async function submitLogin() {
@@ -77,6 +107,7 @@ function logout() {
   sessionStorage.removeItem(STORAGE_KEY);
   stats.value = null;
   needsAuth.value = true;
+  stopAutoRefresh();
 }
 
 function formatAvgSession(seconds: number): string {
@@ -102,7 +133,13 @@ function riderHref(yr: number | null | undefined, slug: string): string | null {
   return `/${yr}/r/${raceNum}/${encodeURIComponent(tail)}`;
 }
 
-onMounted(load);
+onMounted(() => {
+  void load();
+});
+
+onBeforeUnmount(() => {
+  stopAutoRefresh();
+});
 </script>
 
 <template>
@@ -158,10 +195,13 @@ onMounted(load);
 
   <!-- Dashboard -->
   <template v-else>
-    <div class="mb-6 flex justify-end">
+    <div class="mb-6 flex items-center justify-end gap-4 text-[12px] uppercase tracking-[0.06em] text-fg-faint">
+      <span v-if="lastUpdated" class="mono">
+        {{ copy.stats.lastUpdated }}: {{ formatLastUpdated(lastUpdated) }}
+      </span>
       <button
         type="button"
-        class="text-[12px] font-semibold uppercase tracking-[0.06em] text-fg-faint hover:text-accent"
+        class="font-semibold hover:text-accent"
         @click="logout"
       >
         {{ copy.stats.authLogout }}

@@ -171,6 +171,7 @@ export const copy = {
     authError: 'Грешна парола.',
     authLogout: 'Изход',
     loading: 'Зареждане…',
+    lastUpdated: 'Обновено',
   },
   notFound: {
     h1: '404',
