@@ -45,6 +45,9 @@ Full history: `.plan/refactor-plan.md` and the three review files alongside it.
    Tested by `tests/test_mount_order.py` — `/api/nonexistent` returns JSON 404.
 5. **Zero JS per page** is the Phase 2 baseline. Interactive features
    (filters, comparison, charts) are added as Vue islands only where needed.
+6. **Standings are an archive, not a mirror** of the official championship
+   scoring. Multi-day events sum cumulatively, no drop-worst rule, some races
+   may be intentionally absent. Full policy: [`docs/scoring.md`](docs/scoring.md).
 
 ## Running locally
 
