@@ -4,6 +4,8 @@ Public read-only dashboard for the **BGX Hard Enduro Championship** — Bulgaria
 motorcycle racing series. Shows per-season leaderboards, race results, rider
 profiles, and the race calendar.
 
+> **Heads up on point totals.** This site is an archive of every result published, not a mirror of the official scoring. Point totals may differ from other sources — see [`docs/scoring.md`](docs/scoring.md) for the policy and [`.reports/2025-validation-vs-hardendurobulgaria.md`](.reports/2025-validation-vs-hardendurobulgaria.md) for a row-by-row comparison.
+
 ## Stack
 
 - **Backend**: FastAPI + Pydantic v2 + SQLAlchemy 2 (`backend/app/`)
