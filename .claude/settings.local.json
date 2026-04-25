@@ -44,7 +44,8 @@
       "Bash(rmdir assets/logos-bgx assets)",
       "Bash(python3 *)",
       "Read(//tmp/**)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "WebFetch(domain:hardendurobotevgrad.com)"
     ]
   }
 }
