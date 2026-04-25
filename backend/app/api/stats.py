@@ -18,18 +18,22 @@ from app.schemas.stats import (
 )
 from src.db.models import Visit
 
-router = APIRouter(prefix="/api", tags=["stats"])
+router = APIRouter(
+    prefix="/api",
+    tags=["stats"],
+    # Router-level gate: every endpoint mounted on this router inherits
+    # require_stats_auth, so a new /api/stats/* endpoint can't accidentally
+    # ship publicly. The page (frontend StatsView island) sends Basic auth
+    # via Authorization header.
+    dependencies=[Depends(require_stats_auth)],
+)
 
 
 _SESSION_DURATION_WINDOW_DAYS = 30
 _TOP_N = 50
 
 
-@router.get(
-    "/stats",
-    response_model=StatsOut,
-    dependencies=[Depends(require_stats_auth)],
-)
+@router.get("/stats", response_model=StatsOut)
 def get_stats(session: Session = Depends(get_session)) -> StatsOut:
     now = datetime.now(timezone.utc)
     today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
