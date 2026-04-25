@@ -32,6 +32,7 @@ from app.api import standings as standings_api
 from app.api import stats as stats_api
 from app.api import track as track_api
 from app.config import APP_VERSION, TRACK_MAX_BYTES, TRACK_RATE_LIMIT
+from app.security_headers import install as install_security_headers
 
 
 class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
@@ -84,6 +85,9 @@ def create_app() -> FastAPI:
         path="/api/track",
         max_bytes=TRACK_MAX_BYTES,
     )
+
+    # Baseline security headers (CSP, HSTS, X-Frame-Options, …).
+    install_security_headers(app)
 
     # Apply the slowapi decorator to the track endpoint by wrapping its router's
     # endpoint function. Simpler than refactoring the router — keeps the router
