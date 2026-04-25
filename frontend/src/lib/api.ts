@@ -14,6 +14,7 @@ import type {
   EventResultsOut,
   RiderDisambigOut,
   RiderProfileOut,
+  RiderSearchOut,
   SeasonDetailOut,
   SeasonListOut,
   StandingsOut,
@@ -82,6 +83,13 @@ export const api = {
     slug: string,
   ): Promise<RiderProfileOut> =>
     getJson(`/api/seasons/${year}/riders/${raceNumber}/${slug}`),
+
+  searchRiders: (year: number, q: string, limit = 10): Promise<RiderSearchOut> => {
+    const u = new URL('/api/seasons/' + year + '/riders/search', 'http://x');
+    u.searchParams.set('q', q);
+    u.searchParams.set('limit', String(limit));
+    return getJson(u.pathname + u.search);
+  },
 
   getStats: (): Promise<StatsOut> => getJson('/api/stats'),
 

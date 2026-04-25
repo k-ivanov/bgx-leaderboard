@@ -31,6 +31,19 @@ export type RiderDisambigOut = S['RiderDisambigOut'];
 export type RiderResultOut = S['RiderResultOut'];
 export type RiderProfileOut = S['RiderProfileOut'];
 
+// Hand-typed until the next `npm run generate:api-types` run picks up
+// /api/seasons/{year}/riders/search and adds RiderSearchOut to the schema.
+export interface RiderSearchResultOut {
+  rider: RiderRef;
+  category: CategoryRef;
+  season_year: number;
+}
+export interface RiderSearchOut {
+  season: SeasonRef;
+  query: string;
+  results: RiderSearchResultOut[];
+}
+
 export type DeviceCount = S['DeviceCount'];
 export type CategoryVisitCount = S['CategoryVisitCount'];
 export type RecentVisit = S['RecentVisit'];

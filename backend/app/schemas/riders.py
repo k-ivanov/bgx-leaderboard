@@ -47,3 +47,25 @@ class RiderDisambigOut(BaseModel):
     season: SeasonRef
     race_number: int
     candidates: list[RiderDisambigEntryOut]
+
+
+class RiderSearchResultOut(BaseModel):
+    """One row in the rider search response.
+
+    `category` is the first category the rider competes in (riders may
+    appear in multiple categories per season; UI links to the first).
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    rider: RiderRef
+    category: CategoryRef
+    season_year: int
+
+
+class RiderSearchOut(BaseModel):
+    """Response for /api/seasons/{year}/riders/search."""
+    model_config = ConfigDict(from_attributes=True)
+
+    season: SeasonRef
+    query: str
+    results: list[RiderSearchResultOut]
