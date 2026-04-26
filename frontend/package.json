@@ -10,7 +10,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "check": "astro check",
-    "generate:api-types": "openapi-typescript http://127.0.0.1:5001/api/openapi.json -o src/lib/api.openapi.ts"
+    "generate:api-types": "curl -fsS -u admin:${STATS_PASSWORD:-letmein} http://127.0.0.1:5001/api/openapi.json -o /tmp/bgx-openapi.json && openapi-typescript /tmp/bgx-openapi.json -o src/lib/api.openapi.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
