@@ -37,8 +37,15 @@ export default {
         danger: 'var(--color-danger)',
       },
       fontFamily: {
-        sans: ["'Inter Variable'", '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        mono: ["'JetBrains Mono Variable'", 'ui-monospace', 'monospace'],
+        // Body family — used by `<body>` via base styles.
+        sans: ['Barlow', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        // Display family — used by `<h1>`–`<h6>`, `<button>`, nav links, etc.
+        // Applied via base styles in global.css so existing classes don't
+        // need to opt in individually.
+        display: ["'Oswald Variable'", 'Barlow', 'sans-serif'],
+        // Monospace for tabular numerics (race times, points). Falls back
+        // to the platform monospace stack — no separate font ships.
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       maxWidth: {
         container: '1200px',
