@@ -12,6 +12,7 @@ import type {
   EventDetailOut,
   EventListOut,
   EventResultsOut,
+  RiderCareerOut,
   RiderDisambigOut,
   RiderProfileOut,
   RiderSearchOut,
@@ -88,6 +89,12 @@ export const api = {
     const u = new URL('/api/seasons/' + year + '/riders/search', 'http://x');
     u.searchParams.set('q', q);
     u.searchParams.set('limit', String(limit));
+    return getJson(u.pathname + u.search);
+  },
+
+  getRiderCareer: (slug: string): Promise<RiderCareerOut> => {
+    const u = new URL('/api/riders/career', 'http://x');
+    u.searchParams.set('slug', slug);
     return getJson(u.pathname + u.search);
   },
 

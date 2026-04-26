@@ -131,6 +131,13 @@ export const copy = {
       `Участия в ${entered} от ${total} състезания този сезон.`,
     backToCategory: (category: string) =>
       `← Назад към класиране ${category}`,
+    careerHeading: 'Кариера',
+    colSeason: 'Сезон',
+    colCategory: 'Категория',
+    colNumber: '№',
+    colRaces: 'Участия',
+    colBest: 'Най-добро',
+    colPoints: 'Точки',
     disambigH1: (raceNumber: number, year: number) =>
       `Състезател №${raceNumber} · Сезон ${year}`,
     disambigHelp: (count: number, raceNumber: number) =>

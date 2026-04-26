@@ -103,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(events_api.router)
     app.include_router(results_api.router)
     app.include_router(riders_api.router)
+    app.include_router(riders_api.career_router)
     app.include_router(stats_api.router)
     app.include_router(track_api.router)
 
