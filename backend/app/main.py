@@ -65,13 +65,17 @@ class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
 
 
 def create_app() -> FastAPI:
+    # docs_url / openapi_url are intentionally None; we re-mount them
+    # below behind the stats auth gate (P4 #27). This keeps the schema
+    # and swagger UI off the public internet by default while still
+    # being accessible to a developer who has STATS_PASSWORD.
     app = FastAPI(
         title="BGX Hard Enduro Dashboard API",
         description="Read-only JSON API for the BGX Hard Enduro Championship",
         version=APP_VERSION,
-        docs_url="/api/docs",
+        docs_url=None,
         redoc_url=None,
-        openapi_url="/api/openapi.json",
+        openapi_url=None,
     )
 
     # Per-IP rate limit; `track_api` decorates its route (see below).
@@ -107,6 +111,8 @@ def create_app() -> FastAPI:
     app.include_router(stats_api.router)
     app.include_router(track_api.router)
 
+    _mount_gated_docs(app)
+
     # Admin panel mounts at /admin BEFORE StaticFiles so it takes priority
     # over the catch-all. Opt-in via ADMIN_PASSWORD env var.
     from app.admin import setup_admin
@@ -115,6 +121,39 @@ def create_app() -> FastAPI:
     _mount_frontend_if_present(app)
 
     return app
+
+
+def _mount_gated_docs(app: FastAPI) -> None:
+    """Mount /api/docs and /api/openapi.json behind the stats auth gate.
+
+    Same Basic auth as /api/stats: any non-empty username + STATS_PASSWORD.
+    When STATS_PASSWORD is unset (dev convenience), the dependency is a
+    no-op so the docs are openly accessible — same dev-mode pattern the
+    stats endpoint already uses.
+
+    P4 #27 — covers improvements.md.
+    """
+    from fastapi import Depends
+    from fastapi.openapi.docs import get_swagger_ui_html
+    from fastapi.openapi.utils import get_openapi
+
+    from app.auth import require_stats_auth
+
+    @app.get("/api/openapi.json", include_in_schema=False)
+    def openapi_json(_: None = Depends(require_stats_auth)):
+        return get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+
+    @app.get("/api/docs", include_in_schema=False)
+    def swagger_ui(_: None = Depends(require_stats_auth)):
+        return get_swagger_ui_html(
+            openapi_url="/api/openapi.json",
+            title=app.title + " — docs",
+        )
 
 
 def _mount_frontend_if_present(app: FastAPI) -> None:
