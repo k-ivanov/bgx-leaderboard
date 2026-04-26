@@ -44,6 +44,23 @@ export interface RiderSearchOut {
   results: RiderSearchResultOut[];
 }
 
+export interface RiderCareerSeasonOut {
+  season_year: number;
+  race_number: number;
+  category: CategoryRef;
+  team: string | null;
+  bike: string | null;
+  races_participated: number;
+  total_points: number;
+  best_position: number | null;
+}
+export interface RiderCareerOut {
+  slug: string;
+  first_name: string;
+  last_name: string;
+  seasons: RiderCareerSeasonOut[];
+}
+
 export type DeviceCount = S['DeviceCount'];
 export type CategoryVisitCount = S['CategoryVisitCount'];
 export type RecentVisit = S['RecentVisit'];

@@ -19,6 +19,8 @@ from app.schemas.common import (
     build_rider_ref,
 )
 from app.schemas.riders import (
+    RiderCareerOut,
+    RiderCareerSeasonOut,
     RiderDisambigEntryOut,
     RiderDisambigOut,
     RiderProfileOut,
@@ -27,13 +29,105 @@ from app.schemas.riders import (
     RiderSearchResultOut,
 )
 from app.slug import rider_slug
-from src.db.models import Category, Rider, Season
+from src.db.models import Category, EventResult, Rider, Season
 from src.services.rider import (
     get_rider_profile,
     riders_sharing_number,
 )
 
 router = APIRouter(prefix="/api/seasons", tags=["riders"])
+
+career_router = APIRouter(prefix="/api/riders", tags=["riders"])
+
+
+@career_router.get(
+    "/career",
+    response_model=RiderCareerOut,
+)
+def get_rider_career(
+    slug: str = Query(..., min_length=1, max_length=128),
+    session: Session = Depends(get_session),
+) -> RiderCareerOut:
+    """Multi-season career view for a rider (P3 #17).
+
+    Match key is the computed slug (`first-last`, lowercased,
+    spaces→hyphens). Every Rider row whose computed slug equals the
+    query is grouped by (season_year, category) and aggregated.
+
+    Why slug, not (race_number, name)? A rider can change race numbers
+    between seasons but the name stays. Slug is the most stable
+    identifier we have without explicit person-IDs.
+
+    Edge: two unrelated people with identical names will collide.
+    Acceptable in practice for this domain.
+    """
+    needle = slug.strip().lower()
+
+    # Pull every Rider whose computed slug matches. The slug isn't
+    # stored, so we filter in Python after a name-based prefilter.
+    candidates = list(
+        session.execute(
+            select(Rider)
+            .options(selectinload(Rider.season), selectinload(Rider.category))
+        ).scalars()
+    )
+    matching = [
+        r for r in candidates
+        if rider_slug(r.first_name, r.last_name) == needle
+    ]
+    if not matching:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No rider found with slug '{slug}'",
+        )
+
+    # Aggregate per (season, category). One rider can race in multiple
+    # categories within a season (rare); each is a separate row.
+    rows: list[RiderCareerSeasonOut] = []
+    for rider in matching:
+        result_rows = list(
+            session.execute(
+                select(EventResult).where(EventResult.rider_id == rider.id)
+            ).scalars()
+        )
+        if not result_rows:
+            continue
+        # Group results by event so multi-day weekends count as ONE race
+        # for races_participated, but their points sum (matches our
+        # standings policy in src/services/standings.py).
+        per_event: dict[int, list[EventResult]] = {}
+        for r in result_rows:
+            per_event.setdefault(r.event_id, []).append(r)
+        races_participated = len(per_event)
+        total_points = sum(
+            float(r.points or 0) for r in result_rows
+        )
+        positions_with_value = [
+            r.position for r in result_rows if r.position is not None
+        ]
+        best_position = min(positions_with_value) if positions_with_value else None
+        rows.append(
+            RiderCareerSeasonOut(
+                season_year=rider.season.year,
+                race_number=rider.race_number,
+                category=CategoryRef.model_validate(rider.category),
+                team=rider.team,
+                bike=rider.bike,
+                races_participated=races_participated,
+                total_points=total_points,
+                best_position=best_position,
+            )
+        )
+
+    rows.sort(key=lambda r: (-r.season_year, r.category.sort_order))
+
+    rep = matching[0]
+    return RiderCareerOut(
+        slug=rider_slug(rep.first_name, rep.last_name),
+        first_name=rep.first_name,
+        last_name=rep.last_name,
+        seasons=rows,
+    )
 
 
 @router.get(

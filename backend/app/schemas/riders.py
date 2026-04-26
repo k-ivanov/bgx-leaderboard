@@ -69,3 +69,31 @@ class RiderSearchOut(BaseModel):
     season: SeasonRef
     query: str
     results: list[RiderSearchResultOut]
+
+
+class RiderCareerSeasonOut(BaseModel):
+    """One row in a rider's multi-season history (P3 #17)."""
+    model_config = ConfigDict(from_attributes=True)
+
+    season_year: int
+    race_number: int
+    category: CategoryRef
+    team: Optional[str] = None
+    bike: Optional[str] = None
+    races_participated: int
+    total_points: float
+    best_position: Optional[int] = None
+
+
+class RiderCareerOut(BaseModel):
+    """Response for /api/riders/career.
+
+    Groups every Rider row (across all seasons) whose name matches the
+    queried slug, returning one summary row per (season_year, category).
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    slug: str
+    first_name: str
+    last_name: str
+    seasons: list[RiderCareerSeasonOut]

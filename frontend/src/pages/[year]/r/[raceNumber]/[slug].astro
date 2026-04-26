@@ -42,11 +42,15 @@ const { year, raceNumber, slug } = Astro.params;
 const yearNum = Number(year);
 const raceNum = Number(raceNumber);
 
-const [seasonsOut, profile] = await Promise.all([
+const [seasonsOut, profile, career] = await Promise.all([
   api.listSeasons(),
   api.getRiderProfile(yearNum, raceNum, slug!),
+  // Best-effort — career view is non-essential; if the endpoint errors
+  // (rare 404s for very obscure riders), the section just doesn't render.
+  api.getRiderCareer(slug!).catch(() => null),
 ]);
 const allYears = seasonsOut.seasons.map(s => s.year);
+const careerSeasons = career?.seasons ?? [];
 
 const rider = profile.rider;
 const bestFinish = profile.results.reduce<number | null>((best, r) => {
@@ -177,6 +181,50 @@ for (const r of profile.results) {
         </section>
       );
     })
+  )}
+
+  {careerSeasons.length > 1 && (
+    <section class="mt-10">
+      <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{copy.rider.careerHeading}</h2>
+      <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-bg-muted">
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.rider.colSeason}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.rider.colCategory}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.rider.colNumber}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.rider.colRaces}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.rider.colBest}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.rider.colPoints}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {careerSeasons.map(s => {
+              const isCurrentSeason = s.season_year === yearNum && s.race_number === raceNum;
+              const href = `/${s.season_year}/${s.category.code}`;
+              return (
+                <tr class="border-b border-border-muted">
+                  <td class="px-3 py-3 mono">
+                    {isCurrentSeason ? (
+                      <strong>{s.season_year}</strong>
+                    ) : (
+                      <a href={href} class="hover:text-accent">{s.season_year}</a>
+                    )}
+                  </td>
+                  <td class="px-3 py-3">{s.category.display_name}</td>
+                  <td class="px-3 py-3 text-center mono">#{s.race_number}</td>
+                  <td class="px-3 py-3 text-right mono">{s.races_participated}</td>
+                  <td class="px-3 py-3 text-right mono">{s.best_position ?? '—'}</td>
+                  <td class="px-3 py-3 text-right mono">
+                    {s.total_points % 1 === 0 ? s.total_points : Number(s.total_points.toFixed(1))}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   )}
 
   <p class="mt-8 text-sm">
