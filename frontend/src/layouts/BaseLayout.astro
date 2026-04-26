@@ -3,7 +3,7 @@
 //
 // Responsibilities:
 //   - <html>/<head>/<body> boilerplate
-//   - Self-hosted variable fonts (Inter + JetBrains Mono)
+//   - Self-hosted fonts: Oswald (display: headings, nav, buttons) + Barlow (body)
 //   - Global stylesheet with token system + print styles
 //   - Per-page SEO head tags (title, meta desc, canonical, OG, Twitter, JSON-LD)
 //   - Sticky top nav (brand + year switcher + section links)
@@ -12,8 +12,13 @@
 // Takes: page-specific title/description/canonical, year context for the
 // nav, currentNav selector, and an optional JSON-LD structured-data object.
 
-import '@fontsource-variable/inter';
-import '@fontsource-variable/jetbrains-mono';
+// Oswald (variable axis) — display family for headings, nav, buttons.
+import '@fontsource-variable/oswald';
+// Barlow — body family. Static weights since @fontsource doesn't ship a variable build.
+import '@fontsource/barlow/400.css';
+import '@fontsource/barlow/500.css';
+import '@fontsource/barlow/600.css';
+import '@fontsource/barlow/700.css';
 import '~/styles/global.css';
 
 import { copy } from '~/lib/copy';
