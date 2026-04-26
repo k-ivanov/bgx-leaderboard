@@ -192,8 +192,19 @@ db-reset: db-nuke migrate seed ## Nuke + recreate the DB and seed 2025
 # 🧪 Test + type-check
 # ============================================================================
 
+.PHONY: types
+types: $(FRONTEND)/node_modules ## Regenerate frontend api.openapi.ts; fail if it drifted from the running backend
+	@printf "$(C_GOLD)→$(C_RESET) regenerating api.openapi.ts (backend must be running on :$(PORT))\n"
+	@cd $(FRONTEND) && STATS_PASSWORD=$${STATS_PASSWORD:-letmein} npm run generate:api-types
+	@if ! git diff --quiet -- $(FRONTEND)/src/lib/api.openapi.ts; then \
+	  printf "$(C_GOLD)✗$(C_RESET) api.openapi.ts is OUT OF SYNC — diff above. Commit the regen.\n"; \
+	  git --no-pager diff -- $(FRONTEND)/src/lib/api.openapi.ts; \
+	  exit 1; \
+	fi
+	@printf "$(C_GOLD)✓$(C_RESET) api.openapi.ts is in sync\n"
+
 .PHONY: test
-test: $(BACKEND)/$(VENV)/.installed-backend db-up ## Run the full backend pytest suite (64 tests)
+test: $(BACKEND)/$(VENV)/.installed-backend db-up ## Run the full backend pytest suite (89 tests)
 	@cd $(BACKEND) && . $(VENV)/bin/activate && \
 	  $(PYTHON) -m pytest -p no:cacheprovider -o "pythonpath=."
 

@@ -123,6 +123,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/seasons/{year}/riders/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Riders
+         * @description Case-insensitive substring match on first_name, last_name, race_number.
+         *
+         *     Returns at most `limit` results, ranked by best-match heuristic:
+         *       1. exact race_number match (numeric query) first;
+         *       2. then last_name prefix match;
+         *       3. then first_name prefix match;
+         *       4. then everything else.
+         */
+        get: operations["search_riders_api_seasons__year__riders_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/seasons/{year}/riders/{race_number}": {
         parameters: {
             query?: never;
@@ -162,6 +188,37 @@ export interface paths {
          *     (first, last) pair with that number, or the rider has no results.
          */
         get: operations["get_rider_api_seasons__year__riders__race_number___slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/riders/career": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Rider Career
+         * @description Multi-season career view for a rider (P3 #17).
+         *
+         *     Match key is the computed slug (`first-last`, lowercased,
+         *     spaces→hyphens). Every Rider row whose computed slug equals the
+         *     query is grouped by (season_year, category) and aggregated.
+         *
+         *     Why slug, not (race_number, name)? A rider can change race numbers
+         *     between seasons but the name stays. Slug is the most stable
+         *     identifier we have without explicit person-IDs.
+         *
+         *     Edge: two unrelated people with identical names will collide.
+         *     Acceptable in practice for this domain.
+         */
+        get: operations["get_rider_career_api_riders_career_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -306,15 +363,6 @@ export interface components {
             /** Count */
             count: number;
         };
-        /** RiderVisitCount */
-        RiderVisitCount: {
-            /** Season Year */
-            season_year?: number | null;
-            /** Rider Slug */
-            rider_slug: string;
-            /** Count */
-            count: number;
-        };
         /** RecentVisit */
         RecentVisit: {
             /**
@@ -334,6 +382,44 @@ export interface components {
             rider_slug?: string | null;
             /** Device Type */
             device_type: string;
+        };
+        /**
+         * RiderCareerOut
+         * @description Response for /api/riders/career.
+         *
+         *     Groups every Rider row (across all seasons) whose name matches the
+         *     queried slug, returning one summary row per (season_year, category).
+         */
+        RiderCareerOut: {
+            /** Slug */
+            slug: string;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /** Seasons */
+            seasons: components["schemas"]["RiderCareerSeasonOut"][];
+        };
+        /**
+         * RiderCareerSeasonOut
+         * @description One row in a rider's multi-season history (P3 #17).
+         */
+        RiderCareerSeasonOut: {
+            /** Season Year */
+            season_year: number;
+            /** Race Number */
+            race_number: number;
+            category: components["schemas"]["CategoryRef"];
+            /** Team */
+            team?: string | null;
+            /** Bike */
+            bike?: string | null;
+            /** Races Participated */
+            races_participated: number;
+            /** Total Points */
+            total_points: number;
+            /** Best Position */
+            best_position?: number | null;
         };
         /**
          * RiderDisambigEntryOut
@@ -421,6 +507,39 @@ export interface components {
             gps_penalty_ms?: number | null;
             /** Laps */
             laps?: number | null;
+        };
+        /**
+         * RiderSearchOut
+         * @description Response for /api/seasons/{year}/riders/search.
+         */
+        RiderSearchOut: {
+            season: components["schemas"]["SeasonRef"];
+            /** Query */
+            query: string;
+            /** Results */
+            results: components["schemas"]["RiderSearchResultOut"][];
+        };
+        /**
+         * RiderSearchResultOut
+         * @description One row in the rider search response.
+         *
+         *     `category` is the first category the rider competes in (riders may
+         *     appear in multiple categories per season; UI links to the first).
+         */
+        RiderSearchResultOut: {
+            rider: components["schemas"]["RiderRef"];
+            category: components["schemas"]["CategoryRef"];
+            /** Season Year */
+            season_year: number;
+        };
+        /** RiderVisitCount */
+        RiderVisitCount: {
+            /** Season Year */
+            season_year?: number | null;
+            /** Rider Slug */
+            rider_slug: string;
+            /** Count */
+            count: number;
         };
         /**
          * SeasonDetailOut
@@ -752,6 +871,40 @@ export interface operations {
             };
         };
     };
+    search_riders_api_seasons__year__riders_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiderSearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_riders_sharing_number_api_seasons__year__riders__race_number__get: {
         parameters: {
             query?: never;
@@ -804,6 +957,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RiderProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rider_career_api_riders_career_get: {
+        parameters: {
+            query: {
+                slug: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiderCareerOut"];
                 };
             };
             /** @description Validation Error */
