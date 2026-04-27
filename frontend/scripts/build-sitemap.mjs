@@ -83,7 +83,32 @@ async function main() {
   await writeFile(join(DIST, 'sitemap.xml'), sitemap, 'utf-8');
   await writeFile(join(DIST, 'sitemap-index.xml'), sitemapIndex, 'utf-8');
 
+  // Tally by URL prefix so a regression (e.g. accidentally re-introducing
+  // legacy /{year}/{cat}/... pages) shows up in the build log.
+  const tally = new Map();
+  for (const u of urls) {
+    const p = new URL(u.loc).pathname;
+    const key = p === '/' ? '/'
+      : p.startsWith('/rider/') ? '/rider/*'
+      : p.startsWith('/results') ? '/results'
+      : p.startsWith('/stats') ? '/stats'
+      : p.split('/')[1] ? `/${p.split('/')[1]}/*` : 'other';
+    tally.set(key, (tally.get(key) ?? 0) + 1);
+  }
+  const breakdown = [...tally.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ');
   console.log(`[sitemap] wrote ${urls.length} URLs to dist/sitemap.xml + dist/sitemap-index.xml`);
+  console.log(`[sitemap] breakdown: ${breakdown}`);
+
+  // Sanity check: legacy /{year}/{cat}/... URLs were removed in the
+  // frontend restructure (see .plans/frontend-restructure.md §T8). If they
+  // reappear it means /[year]/... pages were re-added to src/pages/.
+  const legacyKeys = [...tally.keys()].filter(k => /^\/\d{4}\/\*$/.test(k));
+  if (legacyKeys.length > 0) {
+    console.warn(`[sitemap] WARNING: legacy per-year URLs detected: ${legacyKeys.join(', ')}`);
+  }
 }
 
 main().catch((err) => {

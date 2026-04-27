@@ -72,7 +72,11 @@ class RiderSearchOut(BaseModel):
 
 
 class RiderCareerSeasonOut(BaseModel):
-    """One row in a rider's multi-season history (P3 #17)."""
+    """One row in a rider's multi-season history (P3 #17).
+
+    `results` carries every per-event row (already collapsed across days)
+    so the rider profile page can render with a single API call.
+    """
     model_config = ConfigDict(from_attributes=True)
 
     season_year: int
@@ -83,6 +87,7 @@ class RiderCareerSeasonOut(BaseModel):
     races_participated: int
     total_points: float
     best_position: Optional[int] = None
+    results: list[RiderResultOut] = []
 
 
 class RiderCareerOut(BaseModel):

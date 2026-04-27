@@ -1,0 +1,222 @@
+---
+// /rider/[slug] — multi-season rider profile (SSG, one page per slug).
+// frontend-restructure.md §T5.
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import PositionBadge from '~/components/common/PositionBadge.astro';
+import PointsPill from '~/components/common/PointsPill.astro';
+import TimeCell from '~/components/common/TimeCell.astro';
+import { copy } from '~/lib/copy';
+import { ordinal } from '~/lib/format';
+import { api } from '~/lib/api';
+import type { RiderCareerOut } from '~/lib/api.types';
+
+export async function getStaticPaths() {
+  const seasons = await api.listSeasons();
+  const seenSlugs = new Set<string>();
+  const paths: { params: { slug: string } }[] = [];
+  for (const s of seasons.seasons) {
+    let detail;
+    try {
+      detail = await api.getSeason(s.year);
+    } catch {
+      continue;
+    }
+    for (const c of detail.categories) {
+      try {
+        const lb = await api.getLeaderboard(s.year, c.code);
+        for (const row of lb.rows) {
+          if (seenSlugs.has(row.rider.slug)) continue;
+          seenSlugs.add(row.rider.slug);
+          paths.push({ params: { slug: row.rider.slug } });
+        }
+      } catch {
+        // Some category x season combos return empty — skip silently.
+      }
+    }
+  }
+  return paths;
+}
+
+const { slug } = Astro.params;
+const slugStr = slug!;
+
+const [seasonsOut, career] = await Promise.all([
+  api.listSeasons(),
+  api.getRiderCareer(slugStr),
+]) as [Awaited<ReturnType<typeof api.listSeasons>>, RiderCareerOut];
+
+const allYears = seasonsOut.seasons.map(s => s.year);
+
+const careerSeasons = career.seasons;
+const latest = careerSeasons[0];
+const headNavYear = latest?.season_year ?? (allYears[0] ?? new Date().getFullYear());
+
+// Header summary aggregates across the whole career.
+const totalPointsAcrossCareer = careerSeasons.reduce((sum, s) => sum + (s.total_points ?? 0), 0);
+const totalRacesAcrossCareer = careerSeasons.reduce(
+  (sum, s) => sum + (s.races_participated ?? 0),
+  0,
+);
+const bestPositionEver = careerSeasons.reduce<number | null>((best, s) => {
+  if (s.best_position == null) return best;
+  if (best == null || s.best_position < best) return s.best_position;
+  return best;
+}, null);
+
+const title = copy.riderProfile.titleFmt(career.first_name, career.last_name);
+const description = latest
+  ? copy.riderProfile.descriptionFmt(
+      career.first_name,
+      career.last_name,
+      latest.category.display_name,
+      latest.season_year,
+    )
+  : copy.riderProfile.titleFmt(career.first_name, career.last_name);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: `${career.first_name} ${career.last_name}`,
+  jobTitle: 'Enduro rider',
+  affiliation: latest?.team
+    ? { '@type': 'SportsTeam', name: latest.team }
+    : undefined,
+  url: Astro.url.href,
+  identifier: latest ? String(latest.race_number) : undefined,
+};
+
+function fmtPoints(n: number | null | undefined): string {
+  if (n == null) return '—';
+  return n % 1 === 0 ? String(n) : n.toFixed(1);
+}
+---
+<BaseLayout
+  title={title}
+  description={description}
+  year={headNavYear}
+  activeYear={headNavYear}
+  allYears={allYears}
+  currentNav="rider"
+  jsonLd={jsonLd}
+  trackPage="rider"
+  trackRiderSlug={slugStr}
+>
+  {!latest ? (
+    <section class="mx-auto max-w-xl py-12 text-center">
+      <h1 class="text-2xl font-extrabold tracking-[-0.02em]">{copy.riderProfile.notFound}</h1>
+    </section>
+  ) : (
+    <>
+      <section class="mb-8 rounded-xl border border-border bg-bg-elevated p-5 md:p-6">
+        <div class="flex flex-wrap items-baseline gap-4">
+          <span class="rounded-md bg-bg-muted px-3 py-1.5 text-lg font-extrabold mono">
+            #{latest.race_number}
+          </span>
+          <h1 class="text-2xl md:text-[32px] font-extrabold tracking-[-0.02em]">
+            {`${career.first_name} ${career.last_name}`}
+          </h1>
+        </div>
+        <p class="mt-2 text-[15px] text-fg-muted">
+          {copy.riderProfile.metaFmt(latest.team, latest.bike, latest.category.display_name)}
+        </p>
+        <p class="mt-3 text-sm text-fg-muted">
+          {copy.riderProfile.statsFmt(
+            bestPositionEver ? ordinal(bestPositionEver) : '—',
+            totalRacesAcrossCareer,
+            totalPointsAcrossCareer % 1 === 0
+              ? totalPointsAcrossCareer
+              : Number(totalPointsAcrossCareer.toFixed(1)),
+          )}
+        </p>
+      </section>
+
+      {careerSeasons.length > 0 && (
+        <section class="mb-10">
+          <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">
+            {copy.riderProfile.careerHeading}
+          </h2>
+          <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+            <div class="scrollx">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-bg-muted">
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.riderProfile.colSeason}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.riderProfile.colCategory}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.riderProfile.colNumber}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.riderProfile.colRaces}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.riderProfile.colBest}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.riderProfile.colPoints}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {careerSeasons.map(s => (
+                    <tr class="border-b border-border-muted">
+                      <td class="px-3 py-3 mono">
+                        <a href={`/results?season=${s.season_year}&category=${s.category.code}`} class="hover:text-accent">
+                          {s.season_year}
+                        </a>
+                      </td>
+                      <td class="px-3 py-3">{s.category.display_name}</td>
+                      <td class="px-3 py-3 text-center mono">#{s.race_number}</td>
+                      <td class="px-3 py-3 text-right mono">{s.races_participated}</td>
+                      <td class="px-3 py-3 text-right mono">{s.best_position ?? '—'}</td>
+                      <td class="px-3 py-3 text-right mono">{fmtPoints(s.total_points)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {careerSeasons.map(s => (
+        <section class="mb-10">
+          <h3 class="mb-3 text-base font-bold tracking-[-0.01em] text-fg-muted">
+            {copy.riderProfile.seasonHeading(s.season_year, s.category.display_name, s.race_number)}
+          </h3>
+          {(!s.results || s.results.length === 0) ? (
+            <p class="text-sm text-fg-faint">—</p>
+          ) : (
+            <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+              <div class="scrollx">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="bg-bg-muted">
+                      <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.riderProfile.colRound}</th>
+                      <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.riderProfile.colRace}</th>
+                      <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.riderProfile.colPosition}</th>
+                      <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.riderProfile.colPoints}</th>
+                      <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.riderProfile.colTime}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(s.results ?? []).map((r, idx) => (
+                      <tr class="hover:bg-[rgba(245,158,11,0.03)] border-b border-border-muted">
+                        <td class="px-3 py-3 text-fg-faint mono">R{idx + 1}</td>
+                        <td class="px-3 py-3">
+                          <a
+                            href={`/results?season=${s.season_year}&category=${s.category.code}&race=${encodeURIComponent(r.event.slug)}`}
+                            class="hover:text-accent"
+                          >
+                            {r.event.name}
+                          </a>
+                        </td>
+                        <td class="px-3 py-3 text-center">
+                          <PositionBadge position={r.position} />
+                        </td>
+                        <td class="px-3 py-3 text-right"><PointsPill points={r.points} /></td>
+                        <td class="px-3 py-3 text-right"><TimeCell ms={r.time_ms} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      ))}
+    </>
+  )}
+</BaseLayout>

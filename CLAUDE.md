@@ -37,12 +37,21 @@ Full history: `.plan/refactor-plan.md` and the three review files alongside it.
 2. **Slug is computed server-side**. `backend/app/slug.py::rider_slug` pins
    the exact algorithm from the original FastHTML app. Frontend never
    recomputes slugs — always consumes `RiderRef.slug` from the API.
-3. **Existing URLs are preserved**. `/2025/expert`, `/2026/r/42/ivan-ivanov`,
-   `/stats`, `/2026/events/kyrnare` all work identically to the pre-refactor
-   FastHTML app. Astro's file-based routing + FastAPI's StaticFiles mount
-   preserve every public URL.
-4. **Mount order in `app.main`**: `/api/*` → `/health` → `/` StaticFiles.
-   Tested by `tests/test_mount_order.py` — `/api/nonexistent` returns JSON 404.
+3. **URL contract** (frontend-restructure.md). The public surface is now:
+   - `/` — landing with single CTA → `/results`
+   - `/results?season=&category=&race=` — single results page (Vue SPA island)
+   - `/rider/{slug}` — multi-season profile, one page per slug (SSG)
+   - `/stats` — auth-gated dashboard
+   - `/api/*` — read-only JSON API
+   Every legacy URL (`/{year}`, `/{year}/{cat}`, `/{year}/{cat}/{slug}`,
+   `/{year}/events`, `/{year}/events/{slug}`, `/{year}/r/{n}/{slug}`) issues
+   a 301 redirect to the new shape via `app/redirects.py`. Bookmarks + search
+   indexed pages keep working; do NOT re-introduce per-year Astro pages.
+4. **Mount order in `app.main`**: `/api/*` → `/health` → `/admin` →
+   legacy redirect router → `/` StaticFiles. The redirect router MUST stay
+   between admin and StaticFiles or `dist/{year}/{cat}/index.html` will
+   shadow the 301. Tested by `tests/test_mount_order.py` and
+   `tests/test_redirects.py`.
 5. **Zero JS per page** is the Phase 2 baseline. Interactive features
    (filters, comparison, charts) are added as Vue islands only where needed.
 6. **Standings are an archive, not a mirror** of the official championship
@@ -70,8 +79,9 @@ Seed once: `cd backend && python -m scripts.import_2025`.
 
 ```bash
 cd backend
-pytest                              # 64 tests: contract, slug, mount order,
-                                    # CORS absence, track, 2025 golden
+pytest                              # 99 tests: contract, slug, mount order,
+                                    # legacy redirects, CORS absence, track,
+                                    # 2025 golden
 ```
 
 ## Build the production image

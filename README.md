@@ -13,10 +13,12 @@ profiles, and the race calendar.
 - **Database**: Postgres + Alembic migrations
 - **Deploy**: Single Docker image on Railway
 
-The site serves pre-generated static HTML for every route (~1800 URLs —
-leaderboards, race results, every rider profile). Same URLs as the previous
-FastHTML app (`/2026/expert`, `/2025/r/42/ivan-ivanov`, etc.). Two Vue islands
-hydrate on top: rider search in the nav and the auth-gated `/stats` dashboard.
+The site has a small fixed surface (`/`, `/results`, `/stats`) plus one
+SSG-generated page per rider (`/rider/{slug}`) — ~500 pre-built URLs total.
+The `/results` page is a Vue SPA island driven by query params
+(`?season=&category=&race=`); rider profiles stay static for SEO. Legacy
+URLs from the previous FastHTML app (`/2026/expert`, `/2025/r/42/...`,
+`/2026/events/...`) 301-redirect to the new shape via `app/redirects.py`.
 
 ## Quick start
 
@@ -82,7 +84,7 @@ CI runs the same on every push + PR — see `.github/workflows/ci.yml`.
 │   └── pyproject.toml
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/            # Astro file-based routing (~1800 routes)
+│   │   ├── pages/            # Astro routes: /, /results, /stats, /rider/[slug] (~500 pages)
 │   │   ├── layouts/          # BaseLayout.astro (SEO head, nav, footer, tracking)
 │   │   ├── components/       # common primitives + layout + Vue islands
 │   │   ├── lib/              # api.ts (typed fetch), copy.ts (microcopy), format.ts

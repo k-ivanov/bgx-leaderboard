@@ -403,6 +403,9 @@ export interface components {
         /**
          * RiderCareerSeasonOut
          * @description One row in a rider's multi-season history (P3 #17).
+         *
+         *     `results` carries every per-event row (already collapsed across days)
+         *     so the rider profile page can render with a single API call.
          */
         RiderCareerSeasonOut: {
             /** Season Year */
@@ -420,6 +423,11 @@ export interface components {
             total_points: number;
             /** Best Position */
             best_position?: number | null;
+            /**
+             * Results
+             * @default []
+             */
+            results: components["schemas"]["RiderResultOut"][];
         };
         /**
          * RiderDisambigEntryOut

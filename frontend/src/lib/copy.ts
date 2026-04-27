@@ -26,24 +26,39 @@ export const copy = {
     empty: 'Няма резултати.',
   },
   home: {
-    h1: 'BGX Хард Ендуро Шампионат Неофициални Резултати',
+    h1: 'BGX Хард Ендуро Шампионат',
+    h1Sub: 'Неофициални Резултати',
     lead:
       'Това са неофициални резултати от Българския Екстремен Ендуро Шампионат, ' +
-      'събрани от навигационните дни на всяко състезание тип Хард Ендуро. Сайтът не е обвързан ' +
-      'с Българската Федерация по Мотоциклетизъм или с организаторите — той е ' +
-      'проект, който прави резултатите от хард ендуро дните по-лесни за проследяване.',
-    whatYoullFindHeading: 'Какво ще намерите тук:',
-    bullets: [
-      'Класирания по класове за всеки сезон от 2024 г. насам',
-      'Резултати от всяко състезание, което има поне един ден хард ендуро състезание',
-      'Профили на състезателите — екип, мотоциклет и цялата серия резултати през сезоните',
-    ],
-    closing: 'Изберете сезон по-долу или използвайте менюто горе.',
-    seasonsHeading: 'Сезони',
-    seasonCurrentBadge: 'Текущ',
-    seasonRidersFmt: (n: number) => `${n} състезатели`,
-    seasonRacesFmt: (n: number) => `${n} състезания`,
-    seasonCtaFmt: (category: string) => `Виж класиране`,
+      'събрани от навигационните дни на всяко състезание тип Хард Ендуро.',
+    cta: 'Резултати',
+  },
+  results: {
+    titleStem: 'Резултати',
+    metaDescription:
+      'Класирания и резултати от шампионата БГХ Хард Ендуро — избери сезон, категория и състезание.',
+    seasonLabel: 'Сезон',
+    seasonAria: 'Избор на сезон',
+    generalTab: 'Генерално класиране',
+    loading: 'Зареждане…',
+    errorTitle: 'Грешка при зареждане',
+    errorBody: 'Моля опитайте отново.',
+    errorRetry: 'Опитай пак',
+    emptyStandings: (category: string) => `Все още няма състезатели в категория ${category}.`,
+    emptyRace: 'Резултатите за тази категория и състезание все още не са налични.',
+    leaderboardH1: (year: number, category: string) => `Класиране ${category} · Сезон ${year}`,
+    raceH1: (round: number, raceName: string, category: string) =>
+      `R${round} · ${raceName} — ${category}`,
+    raceSubtitle: (round: number) => `Кръг ${round}`,
+    colHash: '#',
+    colNumber: '№',
+    colRider: 'Състезател',
+    colTotal: 'Точки',
+    colRaced: 'Участия',
+    colBest: 'Най-добро',
+    colTime: 'Време',
+    colPoints: 'Т.',
+    colLaps: 'Обиколки',
   },
   leaderboard: {
     h1: (year: number, category: string) =>
@@ -111,6 +126,35 @@ export const copy = {
     empty: 'Подробности за състезанието скоро.',
     viewResults: 'Виж резултати →',
   },
+  riderProfile: {
+    titleFmt: (first: string, last: string) => `${first} ${last} · BGX Хард Ендуро`,
+    descriptionFmt: (
+      first: string,
+      last: string,
+      latestCategory: string,
+      latestSeason: number,
+    ) =>
+      `Кариерен профил на ${first} ${last} в шампионата БГХ Хард Ендуро. ` +
+      `Последен сезон: ${latestSeason} · ${latestCategory}.`,
+    careerHeading: 'Кариера',
+    seasonHeading: (year: number, category: string, raceNumber: number) =>
+      `Сезон ${year} · ${category} · #${raceNumber}`,
+    colSeason: 'Сезон',
+    colCategory: 'Категория',
+    colNumber: '№',
+    colRaces: 'Участия',
+    colBest: 'Най-добро',
+    colPoints: 'Точки',
+    colRound: 'Кръг',
+    colRace: 'Състезание',
+    colPosition: 'Позиция',
+    colTime: 'Време',
+    metaFmt: (team: string | null | undefined, bike: string | null | undefined, category: string) =>
+      [team, bike, category].filter(Boolean).join(' · '),
+    statsFmt: (bestFinish: string, racesEntered: number, totalPoints: number) =>
+      `Най-добро: ${bestFinish} · Участия: ${racesEntered} · Общо точки през кариерата: ${totalPoints}`,
+    notFound: 'Не намерихме състезател с този идентификатор.',
+  },
   rider: {
     metaFmt: (
       team: string | null | undefined,
@@ -148,7 +192,6 @@ export const copy = {
     colRace: 'Състезание',
     colDate: 'Дата',
     colPosition: 'Позиция',
-    colPoints: 'Точки',
     colTime: 'Време',
   },
   stats: {
