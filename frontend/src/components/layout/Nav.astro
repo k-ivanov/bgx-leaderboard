@@ -11,8 +11,7 @@ interface Props {
   currentNav: 'leaderboard' | 'races' | 'stats' | 'rider' | 'none';
 }
 
-const { activeYear, allYears, currentNav } = Astro.props;
-const years = [...allYears].sort((a, b) => b - a);
+const { activeYear, currentNav } = Astro.props;
 ---
 <nav class="sticky top-0 z-20 border-b border-border bg-bg-base/90 backdrop-blur nav">
   <div class="max-w-container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
@@ -29,47 +28,19 @@ const years = [...allYears].sort((a, b) => b - a);
       />
       <span class="leading-none">
         <span>{copy.app.brand.replace('.', '')}</span><span class="text-accent"></span>
-        <span class="ml-1 font-normal text-fg-muted">{copy.app.brandSubtitle}</span>
       </span>
     </a>
-
-    {years.length > 0 && (
-      <div class="year-switcher flex gap-1 rounded-pill border border-border bg-bg-muted p-1">
-        {years.map(y => (
-          <a
-            href={`/${y}`}
-            class:list={[
-              'rounded-pill px-4 py-1.5 text-[15px] md:text-[16px] font-semibold transition-colors',
-              y === activeYear
-                ? 'bg-accent text-bg-base'
-                : 'text-fg-muted hover:text-fg',
-            ]}
-          >
-            {y}
-          </a>
-        ))}
-      </div>
-    )}
 
     <div class="flex items-center gap-4 text-[15px] md:text-[16px] font-medium uppercase tracking-[0.04em] text-fg-muted">
       <RiderSearch defaultYear={activeYear} client:only="vue" />
       <a
-        href={`/${activeYear}/expert`}
+        href={`/results?season=${activeYear}`}
         class:list={[
           'hover:text-fg transition-colors',
           currentNav === 'leaderboard' && 'text-fg',
         ]}
       >
         {copy.nav.leaderboard}
-      </a>
-      <a
-        href={`/${activeYear}/events`}
-        class:list={[
-          'hover:text-fg transition-colors',
-          currentNav === 'races' && 'text-fg',
-        ]}
-      >
-        {copy.nav.races}
       </a>
 
       {/* Theme toggle — aria-label flips based on current theme so screen

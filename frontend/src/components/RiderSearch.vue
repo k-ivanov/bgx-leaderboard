@@ -23,9 +23,17 @@ let debounceHandle: ReturnType<typeof setTimeout> | null = null;
 let abortController: AbortController | null = null;
 
 function detectYearFromUrl() {
-  // /2025/...  /2026/r/255/... → 2025 / 2026
-  const m = window.location.pathname.match(/^\/(\d{4})/);
-  yearInUrl.value = m ? Number(m[1]) : props.defaultYear;
+  // New URL space: ?season=2025 on /results. Legacy /{year}/... paths are
+  // also supported for safety, since redirects forward them but the user
+  // may briefly land here mid-redirect.
+  const u = new URL(window.location.href);
+  const param = u.searchParams.get('season');
+  if (param && /^\d{4}$/.test(param)) {
+    yearInUrl.value = Number(param);
+    return;
+  }
+  const legacy = u.pathname.match(/^\/(\d{4})/);
+  yearInUrl.value = legacy ? Number(legacy[1]) : props.defaultYear;
 }
 
 function clear() {
@@ -72,9 +80,9 @@ function onInput(e: Event) {
 }
 
 function navigateTo(r: RiderSearchResultOut) {
-  // /{year}/r/{race_number}/{slug}
-  const url = `/${r.season_year}/r/${r.rider.race_number}/${encodeURIComponent(r.rider.slug)}`;
-  window.location.href = url;
+  // The slug is the cross-season rider identifier; year + race_number
+  // are dropped here (rider profile owns its own meta).
+  window.location.href = `/rider/${encodeURIComponent(r.rider.slug)}`;
 }
 
 function onKeydown(e: KeyboardEvent) {

@@ -32,6 +32,7 @@ from app.api import standings as standings_api
 from app.api import stats as stats_api
 from app.api import track as track_api
 from app.config import APP_VERSION, TRACK_MAX_BYTES, TRACK_RATE_LIMIT
+from app.redirects import router as legacy_redirects_router
 from app.security_headers import install as install_security_headers
 
 
@@ -117,6 +118,10 @@ def create_app() -> FastAPI:
     # over the catch-all. Opt-in via ADMIN_PASSWORD env var.
     from app.admin import setup_admin
     setup_admin(app)
+
+    # Legacy URL redirects MUST mount before StaticFiles so they intercept
+    # /{year}/{cat}/... before dist/{year}/{cat}/index.html is served.
+    app.include_router(legacy_redirects_router)
 
     _mount_frontend_if_present(app)
 

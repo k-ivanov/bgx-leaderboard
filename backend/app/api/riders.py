@@ -87,7 +87,9 @@ def get_rider_career(
     for rider in matching:
         result_rows = list(
             session.execute(
-                select(EventResult).where(EventResult.rider_id == rider.id)
+                select(EventResult)
+                .where(EventResult.rider_id == rider.id)
+                .options(selectinload(EventResult.event))
             ).scalars()
         )
         if not result_rows:
@@ -106,6 +108,9 @@ def get_rider_career(
             r.position for r in result_rows if r.position is not None
         ]
         best_position = min(positions_with_value) if positions_with_value else None
+
+        per_event_results = _collapse_event_results(rider.category, per_event)
+
         rows.append(
             RiderCareerSeasonOut(
                 season_year=rider.season.year,
@@ -116,6 +121,7 @@ def get_rider_career(
                 races_participated=races_participated,
                 total_points=total_points,
                 best_position=best_position,
+                results=per_event_results,
             )
         )
 
@@ -355,3 +361,38 @@ def _build_rider_ref_from_profile(profile) -> "RiderRef":  # type: ignore[name-d
         team=profile.team,
         bike=profile.bike,
     )
+
+
+def _collapse_event_results(
+    category: Category,
+    per_event: dict[int, list[EventResult]],
+) -> list[RiderResultOut]:
+    """Collapse multi-day rows per event into one RiderResultOut, sum points/time, sort by event.sort_order."""
+    out: list[RiderResultOut] = []
+    for day_rows in per_event.values():
+        event = day_rows[0].event
+
+        points_vals = [float(r.points) for r in day_rows if r.points is not None]
+        points = sum(points_vals) if points_vals else None
+
+        positions = [r.position for r in day_rows if r.position is not None]
+        position = min(positions) if positions else None
+
+        def _sum(field: str, rows: list[EventResult] = day_rows) -> Optional[int]:
+            vals = [getattr(r, field) for r in rows if getattr(r, field) is not None]
+            return sum(vals) if vals else None
+
+        out.append(
+            RiderResultOut(
+                event=EventRef.model_validate(event),
+                category=CategoryRef.model_validate(category),
+                position=position,
+                points=points,
+                time_ms=_sum("time_ms"),
+                gap_ms=_sum("gap_ms"),
+                gps_penalty_ms=_sum("gps_penalty_ms"),
+                laps=_sum("laps"),
+            )
+        )
+    out.sort(key=lambda r: r.event.sort_order)
+    return out

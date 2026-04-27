@@ -1,0 +1,39 @@
+---
+// /results — single results page driven by ?season=&category=&race=
+// frontend-restructure.md §T4. The Astro shell only fetches the season
+// list at build time so the season dropdown can render without a round-
+// trip; everything else is owned by the Vue island.
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import ResultsView from '~/components/ResultsView.vue';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+import type { SeasonRef } from '~/lib/api.types';
+
+let seasons: SeasonRef[] = [];
+try {
+  const out = await api.listSeasons();
+  seasons = [...out.seasons].sort((a, b) => b.year - a.year);
+} catch {
+  seasons = [];
+}
+
+const current = seasons.find(s => s.is_current);
+const defaultYear = current?.year ?? seasons[0]?.year ?? new Date().getFullYear();
+const allYears = seasons.map(s => s.year);
+
+const title = `${copy.results.titleStem} · ${copy.seo.brand}`;
+const description = copy.results.metaDescription;
+---
+<BaseLayout
+  title={title}
+  description={description}
+  year={defaultYear}
+  activeYear={defaultYear}
+  allYears={allYears}
+  currentNav="leaderboard"
+  trackPage="leaderboard"
+  skipTracking
+>
+  <ResultsView client:only="vue" seasons={seasons} defaultYear={defaultYear} />
+</BaseLayout>
