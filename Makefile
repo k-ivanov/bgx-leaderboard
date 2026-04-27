@@ -188,6 +188,26 @@ db-shell: ## Open a psql shell against the local Postgres
 .PHONY: db-reset
 db-reset: db-nuke migrate seed ## Nuke + recreate the DB and seed 2025
 
+.PHONY: db-dump
+db-dump: ## Dump local Postgres → db_dumps/local-<ts>.sql.gz. Add ARGS="--data-only" for data only.
+	@$(ROOT)/scripts/db-dump.sh local $(ARGS)
+
+.PHONY: db-dump-prod
+db-dump-prod: ## Dump prod Postgres → db_dumps/prod-<ts>.sql.gz. Set PROD_DATABASE_URL or have `railway` linked.
+	@$(ROOT)/scripts/db-dump.sh prod $(ARGS)
+
+.PHONY: db-restore
+db-restore: ## Restore a dump into the local DB. Usage: make db-restore FILE=db_dumps/local-….sql.gz
+	@if [ -z "$(FILE)" ]; then printf "Usage: make db-restore FILE=<path-to-dump>\n"; exit 2; fi
+	@$(ROOT)/scripts/db-restore.sh local "$(FILE)" $(ARGS)
+
+.PHONY: db-seed-prod
+db-seed-prod: ## Push a local data dump → prod (assumes `alembic upgrade head` ran on prod). Usage: make db-seed-prod FILE=db_dumps/local-data-….sql.gz
+	@if [ -z "$(FILE)" ]; then printf "Usage: make db-seed-prod FILE=<path-to-data-only-dump>\n"; exit 2; fi
+	@printf "$(C_GOLD)⚠$(C_RESET)  This will overwrite production data. Press Enter to continue, Ctrl-C to abort.\n"
+	@read _
+	@$(ROOT)/scripts/db-restore.sh prod "$(FILE)" --yes --data-only
+
 # ============================================================================
 # 🧪 Test + type-check
 # ============================================================================
