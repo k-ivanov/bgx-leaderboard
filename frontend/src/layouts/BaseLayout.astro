@@ -42,6 +42,13 @@ interface Props {
   trackCategory?: string | null;
   trackEventSlug?: string | null;
   trackRiderSlug?: string | null;
+  /**
+   * Skip the inline /api/track POST. Use on pages where a Vue island
+   * owns tracking — e.g. /results, where the URL state is filled in
+   * client-side and tracking the build-time defaults would mis-bucket
+   * every visit.
+   */
+  skipTracking?: boolean;
 }
 
 const {
@@ -59,6 +66,7 @@ const {
   trackCategory = null,
   trackEventSlug = null,
   trackRiderSlug = null,
+  skipTracking = false,
 } = Astro.props;
 
 const trackPayload = {
@@ -138,18 +146,22 @@ const appVersion = '0.2.0';
     <Footer appVersion={appVersion} />
     {/* Cookieless visit tracking — posts once per page load. No cookies,
        no localStorage, no sessionStorage: visitor_id is derived server-side
-       from a daily-rotating salt, so ePrivacy consent is not required. */}
-    <script is:inline define:vars={{ trackPayload }}>
-      (function () {
-        try {
-          fetch('/api/track', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(trackPayload),
-            keepalive: true,
-          }).catch(function () { /* fire-and-forget */ });
-        } catch (_) { /* never break the page for analytics */ }
-      })();
-    </script>
+       from a daily-rotating salt, so ePrivacy consent is not required.
+       skipTracking=true delegates to a Vue island whose state is the
+       authoritative tracker (e.g. /results — see ResultsView.vue). */}
+    {!skipTracking && (
+      <script is:inline define:vars={{ trackPayload }}>
+        (function () {
+          try {
+            fetch('/api/track', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(trackPayload),
+              keepalive: true,
+            }).catch(function () { /* fire-and-forget */ });
+          } catch (_) { /* never break the page for analytics */ }
+        })();
+      </script>
+    )}
   </body>
 </html>
