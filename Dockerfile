@@ -23,7 +23,13 @@ FROM node:20-alpine AS frontend
 
 ARG API_URL=http://host.docker.internal:5001
 ARG PREBUILT_DIST=0
+# SITE controls the canonical/og:image base URL Astro bakes into the static
+# HTML. Defaults to the production domain so social-share thumbnails resolve
+# without extra Railway config; override via --build-arg SITE=… for local
+# image builds or staging.
+ARG SITE=https://hardendurobulgaria.com
 ENV API_URL=${API_URL} \
+    SITE=${SITE} \
     NODE_ENV=production
 
 WORKDIR /work
