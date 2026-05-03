@@ -11,10 +11,10 @@ client = TestClient(app)
 def test_career_for_known_rider_aggregates_seasons():
     # Димитър ТИНЧЕВ raced in 2024 + 2025 (and possibly 2026 — the
     # assertion only requires he shows up in MORE THAN one season).
-    res = client.get("/api/riders/career", params={"slug": "димитър-тинчев"})
+    res = client.get("/api/riders/career", params={"slug": "димитър-тинчев-255"})
     assert res.status_code == 200, res.text
     data = res.json()
-    assert data["slug"] == "димитър-тинчев"
+    assert data["slug"] == "димитър-тинчев-255"
     assert data["last_name"] == "ТИНЧЕВ"
     # Multi-season expected; if seed data ever drops to one season this
     # is still useful as a "career row exists" assertion.
@@ -39,7 +39,7 @@ def test_career_requires_slug():
 
 
 def test_career_seasons_are_descending():
-    res = client.get("/api/riders/career", params={"slug": "димитър-тинчев"})
+    res = client.get("/api/riders/career", params={"slug": "димитър-тинчев-255"})
     assert res.status_code == 200
     seasons = res.json()["seasons"]
     years = [s["season_year"] for s in seasons]

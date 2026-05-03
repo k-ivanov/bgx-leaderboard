@@ -34,9 +34,13 @@ Full history: `.plan/refactor-plan.md` and the three review files alongside it.
    Race numbers alone are NOT unique — reused across categories and between
    people. Everywhere in the API, a rider is represented by `RiderRef`
    (`backend/app/schemas/common.py`) which includes the slug.
-2. **Slug is computed server-side**. `backend/app/slug.py::rider_slug` pins
-   the exact algorithm from the original FastHTML app. Frontend never
-   recomputes slugs — always consumes `RiderRef.slug` from the API.
+2. **Slug is computed server-side**. `backend/app/slug.py::rider_slug`
+   produces `{first}-{last}-{race_number}`. The race_number is included on
+   purpose: real-world rider names collide ("Иван ИВАНОВ" appears with 4
+   distinct numbers in the dataset, almost certainly multiple people).
+   Trade-off: a rider whose race_number changes between seasons fragments
+   into separate `/rider/{slug}` URLs. Frontend never recomputes slugs —
+   always consumes `RiderRef.slug` from the API.
 3. **URL contract** (frontend-restructure.md). The public surface is now:
    - `/` — landing with single CTA → `/results`
    - `/results?season=&category=&race=` — single results page (Vue SPA island)

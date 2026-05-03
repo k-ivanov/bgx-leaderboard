@@ -35,7 +35,7 @@ class RiderRef(BaseModel):
             race_number=rider.race_number,
             first_name=rider.first_name,
             last_name=rider.last_name,
-            slug=rider_slug(rider.first_name, rider.last_name),
+            slug=rider_slug(rider.first_name, rider.last_name, rider.race_number),
             team=rider.team,
             bike=rider.bike,
         )
