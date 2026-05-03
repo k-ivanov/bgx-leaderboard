@@ -97,7 +97,10 @@ interface CareerStats {
 }
 
 function buildStats(career: RiderCareerOut): CareerStats {
-  const seasons = career.seasons.length;
+  // Count unique season_year values, not entries: a rider who raced in
+  // two categories in 2025 has two `seasons` entries for that year but
+  // it's still one calendar season.
+  const seasons = new Set(career.seasons.map(s => s.season_year)).size;
   const starts = career.seasons.reduce((acc, s) => acc + s.races_participated, 0);
   const finishes = career.seasons.reduce(
     (acc, s) => acc + s.results.filter(r => r.position != null).length,
