@@ -147,10 +147,10 @@ function fmtPoints(n: number | null | undefined): string {
                   <tr class="bg-bg-muted">
                     <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.riderProfile.colSeason}</th>
                     <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.riderProfile.colCategory}</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.riderProfile.colNumber}</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.riderProfile.colRaces}</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.riderProfile.colBest}</th>
-                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{copy.riderProfile.colPoints}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.riderProfile.colRanking}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.riderProfile.colRaces}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.riderProfile.colBest}</th>
+                    <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{copy.riderProfile.colPoints}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -162,10 +162,10 @@ function fmtPoints(n: number | null | undefined): string {
                         </a>
                       </td>
                       <td class="px-3 py-3">{s.category.display_name}</td>
-                      <td class="px-3 py-3 text-center mono">#{s.race_number}</td>
-                      <td class="px-3 py-3 text-right mono">{s.races_participated}</td>
-                      <td class="px-3 py-3 text-right mono">{s.best_position ?? '—'}</td>
-                      <td class="px-3 py-3 text-right mono">{fmtPoints(s.total_points)}</td>
+                      <td class="px-3 py-3 text-center"><PositionBadge position={s.final_position} /></td>
+                      <td class="px-3 py-3 text-center mono">{s.races_participated}</td>
+                      <td class="px-3 py-3 text-center mono">{s.best_position ?? '—'}</td>
+                      <td class="px-3 py-3 text-center mono">{fmtPoints(s.total_points)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -185,7 +185,17 @@ function fmtPoints(n: number | null | undefined): string {
           ) : (
             <div class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
               <div class="scrollx">
-                <table class="w-full text-sm">
+                {/* table-fixed + colgroup so every per-season table on this
+                    page aligns column-for-column, regardless of how wide
+                    that season's race names happen to be. */}
+                <table class="w-full text-sm table-fixed">
+                  <colgroup>
+                    <col class="w-[72px]" />
+                    <col />
+                    <col class="w-[120px]" />
+                    <col class="w-[96px]" />
+                    <col class="w-[140px]" />
+                  </colgroup>
                   <thead>
                     <tr class="bg-bg-muted">
                       <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{copy.riderProfile.colRound}</th>
@@ -199,7 +209,7 @@ function fmtPoints(n: number | null | undefined): string {
                     {(s.results ?? []).map((r, idx) => (
                       <tr class="hover:bg-[rgba(245,158,11,0.03)] border-b border-border-muted">
                         <td class="px-3 py-3 text-fg-faint mono">R{idx + 1}</td>
-                        <td class="px-3 py-3">
+                        <td class="px-3 py-3 truncate" title={r.event.name}>
                           <a
                             href={`/results?season=${s.season_year}&category=${s.category.code}&race=${encodeURIComponent(r.event.slug)}`}
                             class="hover:text-accent"

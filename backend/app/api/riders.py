@@ -35,6 +35,7 @@ from src.services.rider import (
     get_rider_profile,
     riders_sharing_number,
 )
+from src.services.standings import get_standings
 
 router = APIRouter(prefix="/api/seasons", tags=["riders"])
 
@@ -84,6 +85,11 @@ def get_rider_career(
 
     # Aggregate per (season, category). One rider can race in multiple
     # categories within a season (rare); each is a separate row.
+    # Standings are cached per (season_id, category_id) — a rider can only
+    # appear once per (season, category), but the cache also avoids
+    # recomputing if `matching` happens to include duplicates.
+    standings_cache: dict[tuple[int, int], list] = {}
+
     rows: list[RiderCareerSeasonOut] = []
     for rider in matching:
         result_rows = list(
@@ -112,6 +118,20 @@ def get_rider_career(
 
         per_event_results = _collapse_event_results(rider.category, per_event)
 
+        # Look up the rider's general-classification rank in the season
+        # standings. Same get_standings the leaderboard endpoint uses, so
+        # the number matches what /results shows.
+        cache_key = (rider.season_id, rider.category_id)
+        if cache_key not in standings_cache:
+            standings_cache[cache_key] = get_standings(
+                session, rider.season, rider.category,
+            )
+        final_position = next(
+            (sr.final_position for sr in standings_cache[cache_key]
+             if sr.rider.id == rider.id),
+            None,
+        )
+
         rows.append(
             RiderCareerSeasonOut(
                 season_year=rider.season.year,
@@ -119,6 +139,7 @@ def get_rider_career(
                 category=CategoryRef.model_validate(rider.category),
                 team=rider.team,
                 bike=rider.bike,
+                final_position=final_position,
                 races_participated=races_participated,
                 total_points=total_points,
                 best_position=best_position,

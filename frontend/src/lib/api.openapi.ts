@@ -458,6 +458,8 @@ export interface components {
             team?: string | null;
             /** Bike */
             bike?: string | null;
+            /** Final Position */
+            final_position?: number | null;
             /** Races Participated */
             races_participated: number;
             /** Total Points */

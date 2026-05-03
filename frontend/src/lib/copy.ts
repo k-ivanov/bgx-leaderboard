@@ -142,6 +142,7 @@ export const copy = {
     colSeason: 'Сезон',
     colCategory: 'Категория',
     colNumber: '№',
+    colRanking: 'Класиране',
     colRaces: 'Участия',
     colBest: 'Най-добро',
     colPoints: 'Точки',

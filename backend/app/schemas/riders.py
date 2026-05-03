@@ -97,6 +97,13 @@ class RiderCareerSeasonOut(BaseModel):
     category: CategoryRef
     team: Optional[str] = None
     bike: Optional[str] = None
+    # The rider's general-classification rank in this (season, category) at
+    # the time of the API call. Computed from the same `get_standings`
+    # function that powers /api/seasons/{year}/standings/{cat}, so the
+    # value matches what's shown on the leaderboard. Null when the rider
+    # is a registered Rider row but has zero EventResult rows (skipped by
+    # the standings algorithm at line 141 of standings.py).
+    final_position: Optional[int] = None
     races_participated: int
     total_points: float
     best_position: Optional[int] = None
