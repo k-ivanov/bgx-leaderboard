@@ -19,6 +19,7 @@ from app.schemas.common import (
     build_rider_ref,
 )
 from app.schemas.riders import (
+    GlobalRiderSearchOut,
     RiderCareerOut,
     RiderCareerSeasonOut,
     RiderDisambigEntryOut,
@@ -134,6 +135,84 @@ def get_rider_career(
         last_name=rep.last_name,
         seasons=rows,
     )
+
+
+@career_router.get(
+    "/search",
+    response_model=GlobalRiderSearchOut,
+)
+def search_riders_global(
+    q: str = Query(..., min_length=1, max_length=64),
+    limit: int = Query(10, ge=1, le=50),
+    session: Session = Depends(get_session),
+) -> GlobalRiderSearchOut:
+    """Cross-season rider search.
+
+    Same tokenization rules as the per-season endpoint above (whitespace-
+    AND across tokens, each token ORs across first_name / last_name /
+    race_number). Results are deduped by computed slug — riders who
+    raced multiple seasons appear once with their most recent
+    (year, category). UI links to /rider/{slug}, which is multi-season
+    by design, so showing every (year, category) row would just be noise.
+    """
+    needle = q.strip()
+    if not needle:
+        return GlobalRiderSearchOut(query=q, results=[])
+
+    base_q = (
+        select(Rider, Category, Season)
+        .join(Category, Rider.category_id == Category.id)
+        .join(Season, Rider.season_id == Season.id)
+    )
+    tokens = needle.split()
+    per_token = []
+    for t in tokens:
+        pat = f"%{t.lower()}%"
+        or_terms = [Rider.first_name.ilike(pat), Rider.last_name.ilike(pat)]
+        try:
+            or_terms.append(Rider.race_number == int(t))
+        except ValueError:
+            pass
+        per_token.append(or_(*or_terms))
+
+    rows = list(session.execute(base_q.where(and_(*per_token))).all())
+
+    # Dedup by slug, keep the entry with the highest (most recent) year.
+    by_slug: dict[str, tuple[Rider, Category, Season]] = {}
+    for rider, cat, season in rows:
+        slug = rider_slug(rider.first_name, rider.last_name)
+        existing = by_slug.get(slug)
+        if existing is None or season.year > existing[2].year:
+            by_slug[slug] = (rider, cat, season)
+
+    needle_lower = needle.lower()
+
+    def _rank(triple: tuple[Rider, Category, Season]) -> tuple[int, int, str]:
+        rider, _cat, season = triple
+        # Tier 1: exact race_number for digit-only queries.
+        if needle.isdigit() and rider.race_number == int(needle):
+            tier = 0
+        elif rider.last_name.lower().startswith(needle_lower):
+            tier = 1
+        elif rider.first_name.lower().startswith(needle_lower):
+            tier = 2
+        else:
+            tier = 3
+        # Within a tier, prefer most recent season (negate so ascending sort
+        # picks the higher year first), then alphabetical by last name.
+        return (tier, -season.year, rider.last_name.lower())
+
+    chosen = sorted(by_slug.values(), key=_rank)[:limit]
+
+    results = [
+        RiderSearchResultOut(
+            rider=build_rider_ref(rider),
+            category=CategoryRef.model_validate(cat),
+            season_year=season.year,
+        )
+        for rider, cat, season in chosen
+    ]
+    return GlobalRiderSearchOut(query=q, results=results)
 
 
 @router.get(

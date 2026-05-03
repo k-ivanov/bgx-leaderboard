@@ -76,3 +76,33 @@ def test_search_multi_token_mixed_number_and_name():
     results = res.json()["results"]
     assert results, "expected at least one match for '169 Кръстев'"
     assert results[0]["rider"]["race_number"] == 169
+
+
+def test_global_search_finds_rider_outside_default_year():
+    # Илиян Кръстев #169 only races in 2024 + 2025, not 2026. The cross-
+    # season endpoint must surface him regardless of which season the
+    # caller is currently viewing.
+    res = client.get("/api/riders/search", params={"q": "Илиян Кръстев"})
+    assert res.status_code == 200
+    body = res.json()
+    matches = [
+        r for r in body["results"]
+        if r["rider"]["race_number"] == 169
+        and r["rider"]["last_name"].lower() == "кръстев"
+    ]
+    assert matches, "global search should find Илиян Кръстев across years"
+    # Dedup: only one entry per slug.
+    slugs = [r["rider"]["slug"] for r in body["results"]]
+    assert len(slugs) == len(set(slugs))
+
+
+def test_global_search_dedup_picks_most_recent_year():
+    # When a rider raced in multiple seasons, the dedup'd row should be
+    # the most recent one. Илиян Кръстев is 2024 + 2025 → expect 2025.
+    res = client.get("/api/riders/search", params={"q": "Илиян Кръстев"})
+    matches = [
+        r for r in res.json()["results"]
+        if r["rider"]["race_number"] == 169
+        and r["rider"]["last_name"].lower() == "кръстев"
+    ]
+    assert matches and matches[0]["season_year"] == 2025

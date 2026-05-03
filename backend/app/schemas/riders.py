@@ -71,6 +71,19 @@ class RiderSearchOut(BaseModel):
     results: list[RiderSearchResultOut]
 
 
+class GlobalRiderSearchOut(BaseModel):
+    """Response for /api/riders/search (cross-season).
+
+    Each row carries its own season_year, so the caller can render a
+    year tag. Results are deduped by rider slug — a rider who raced in
+    multiple seasons appears once, with the most recent (year, category).
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    query: str
+    results: list[RiderSearchResultOut]
+
+
 class RiderCareerSeasonOut(BaseModel):
     """One row in a rider's multi-season history (P3 #17).
 

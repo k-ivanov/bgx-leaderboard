@@ -1,18 +1,18 @@
 <script setup lang="ts">
 // Rider search island for the top nav.
 //
-// Debounced /api/seasons/{year}/riders/search call. Dropdown overlay,
-// arrow-key navigation, Enter to navigate, Esc to close. Auto-rebinds
-// when the URL year changes (e.g. user clicks the year switcher).
+// Debounced /api/riders/search call (cross-season — finds riders
+// regardless of the season currently selected on /results). Dropdown
+// overlay, arrow-key navigation, Enter to navigate, Esc to close. Each
+// result links to /rider/{slug}, which is multi-season by design.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import type { RiderSearchOut, RiderSearchResultOut } from '~/lib/api.types';
+import type { GlobalRiderSearchOut, RiderSearchResultOut } from '~/lib/api.types';
 import { copy } from '~/lib/copy';
 
-const props = defineProps<{
+defineProps<{
   defaultYear: number;
 }>();
 
-const yearInUrl = ref(props.defaultYear);
 const query = ref('');
 const results = ref<RiderSearchResultOut[]>([]);
 const open = ref(false);
@@ -21,20 +21,6 @@ const cursor = ref(-1);
 
 let debounceHandle: ReturnType<typeof setTimeout> | null = null;
 let abortController: AbortController | null = null;
-
-function detectYearFromUrl() {
-  // New URL space: ?season=2025 on /results. Legacy /{year}/... paths are
-  // also supported for safety, since redirects forward them but the user
-  // may briefly land here mid-redirect.
-  const u = new URL(window.location.href);
-  const param = u.searchParams.get('season');
-  if (param && /^\d{4}$/.test(param)) {
-    yearInUrl.value = Number(param);
-    return;
-  }
-  const legacy = u.pathname.match(/^\/(\d{4})/);
-  yearInUrl.value = legacy ? Number(legacy[1]) : props.defaultYear;
-}
 
 function clear() {
   query.value = '';
@@ -53,13 +39,13 @@ async function runSearch(q: string) {
   abortController = new AbortController();
   loading.value = true;
   try {
-    const url = `/api/seasons/${yearInUrl.value}/riders/search?q=${encodeURIComponent(q)}&limit=10`;
+    const url = `/api/riders/search?q=${encodeURIComponent(q)}&limit=10`;
     const res = await fetch(url, { signal: abortController.signal });
     if (!res.ok) {
       results.value = [];
       return;
     }
-    const data = (await res.json()) as RiderSearchOut;
+    const data = (await res.json()) as GlobalRiderSearchOut;
     results.value = data.results;
     open.value = true;
     cursor.value = data.results.length > 0 ? 0 : -1;
@@ -115,7 +101,6 @@ const showEmpty = computed(
 );
 
 onMounted(() => {
-  detectYearFromUrl();
   window.addEventListener('keydown', onKeydown);
 });
 
@@ -159,7 +144,7 @@ onBeforeUnmount(() => {
             <span class="ml-2 font-semibold">{{ r.rider.first_name }} {{ r.rider.last_name }}</span>
           </span>
           <span class="text-[11px] uppercase tracking-[0.06em] text-fg-faint">
-            {{ r.category.code }}
+            {{ r.category.code }} · {{ r.season_year }}
           </span>
         </li>
       </ul>
