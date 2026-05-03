@@ -138,11 +138,16 @@ interface H2HRow {
 }
 
 function flattenResults(career: RiderCareerOut) {
-  // Map keyed on "${year}-${event_slug}" for cheap intersection.
+  // Map keyed on "${year}-${event_slug}-${category_code}" — including
+  // category in the key so the intersection only matches when both
+  // riders were competing in the same class. Comparing an expert
+  // result against a women's-category result in the same race isn't
+  // a head-to-head, it's a coincidence of date.
   const out = new Map<string, { season: RiderCareerSeasonOut; result: typeof career.seasons[number]['results'][number] }>();
   for (const s of career.seasons) {
     for (const r of s.results) {
-      out.set(`${s.season_year}-${r.event.slug}`, { season: s, result: r });
+      const cat = r.category?.code ?? s.category.code;
+      out.set(`${s.season_year}-${r.event.slug}-${cat}`, { season: s, result: r });
     }
   }
   return out;
