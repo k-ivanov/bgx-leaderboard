@@ -17,12 +17,17 @@ from starlette.requests import Request
 from starlette.types import ASGIApp
 
 
+# script-src + connect-src openings for Cloudflare Web Analytics:
+#   - static.cloudflareinsights.com hosts beacon.min.js (loaded in <head>)
+#   - cloudflareinsights.com receives the beacon POSTs
+# Both are restricted to https; the inline 'unsafe-inline' is unrelated and
+# is needed for the BaseLayout's is:inline blocks (theme init, define:vars).
 _CSP = (
     "default-src 'self'; "
     "img-src 'self' data:; "
     "style-src 'self' 'unsafe-inline'; "
-    "script-src 'self' 'unsafe-inline'; "
-    "connect-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; "
+    "connect-src 'self' https://cloudflareinsights.com; "
     "font-src 'self' data:; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "

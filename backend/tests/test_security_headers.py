@@ -31,3 +31,11 @@ def test_hsts_only_on_https():
     # TestClient defaults to http://testserver, so HSTS should NOT appear.
     res = client.get("/health")
     assert "Strict-Transport-Security" not in res.headers
+
+
+def test_csp_allows_cloudflare_web_analytics():
+    # The CF beacon loads beacon.min.js from static.cloudflareinsights.com
+    # and POSTs metrics to cloudflareinsights.com. CSP must permit both.
+    csp = client.get("/health").headers["Content-Security-Policy"]
+    assert "https://static.cloudflareinsights.com" in csp
+    assert "https://cloudflareinsights.com" in csp

@@ -135,6 +135,17 @@ const appVersion = import.meta.env.PUBLIC_APP_VERSION ?? 'dev';
     {jsonLd && (
       <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     )}
+
+    {/* Cloudflare Web Analytics — production only, so dev/preview builds
+        don't pollute the dashboard with localhost traffic. */}
+    {import.meta.env.PROD && (
+      <script
+        is:inline
+        defer
+        src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "79730a35632144ba94289679a142c748"}'
+      />
+    )}
   </head>
   <body>
     <Nav
