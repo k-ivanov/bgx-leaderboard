@@ -16,13 +16,15 @@ Riders who registered but did not finish a day appear with 0 points. They are ke
 
 When two riders end the season tied on `total_points`, the season leaderboard breaks the tie in this order:
 
-1. **Better best-position wins.** The lowest single-race finish on the rider's record. A 1st-place finish anywhere in the season beats a season of 5th-place finishes.
-2. **Higher inverse-position sum wins.** Per event the rider entered, score = `(finishers_in_event_category − rider_position + 1) / finishers_in_event_category`. Each event contributes a value in (0, 1]: 1.0 for an event win, ~0 for last finisher. DNF / DNS / DSQ / events with no real position data contribute 0. Sum across every event. Higher = better. This rewards "more races + better finishes" together — a rider who showed up to 5 races and finished mid-pack each time outranks a rider who showed up to 1 race and finished mid-pack once. Field size is normalized into the formula so a 5-of-25 finish in a small race isn't drowned out by a 30-of-125 finish in a big one.
-3. **Lower race number wins.** Final, deterministic break.
+1. **Riders with at least one real finish rank above riders who only DNF/DNS-ed.** A rider whose every event was DNF / DNS / DSQ has their `best_position` imputed from points (0 pts → 21). Without this rule, a back-of-pack 23rd-place finish would lose to a never-finished rider whose imputed best is 21. Anyone who actually finished a race outranks anyone who never did.
+2. **Better best-position wins.** Within each tier above, the lowest single-race finish on the rider's record. A 1st-place finish anywhere in the season beats a season of 5th-place finishes.
+3. **Higher inverse-position sum wins.** Per event the rider entered, score = `(finishers_in_event_category − rider_position + 1) / finishers_in_event_category`. Each event contributes a value in (0, 1]: 1.0 for an event win, ~0 for last finisher. DNF / DNS / DSQ / events with no real position data contribute 0. Sum across every event. Higher = better. This rewards better finishes — and rewards more of them, since each finish adds to the sum. Field size is normalized into the formula so a 5-of-25 finish in a small race isn't drowned out by a 30-of-125 finish in a big one.
+4. **More races participated wins.** Among riders tied on everything above (typically the all-DNF group, where the inverse-position sum is 0 for everyone), the rider who entered more events ranks higher. "Showed up 3 times and DNF'd" beats "showed up once and DNF'd."
+5. **Lower race number wins.** Final, deterministic break.
 
-The inverse-position score is computed silently — it is never exposed over the API and never displayed in the UI. It exists purely to give the bottom of the leaderboard a sensible ordering.
+The inverse-position score and the imputed-only flag are computed silently — neither is exposed over the API or rendered in the UI. They exist purely to give the bottom of the leaderboard a sensible ordering.
 
-This rule applies the same way to riders with 0 total points (a large group — in the 2025 `standard` category, 91 of 142 riders end the season scoreless). They all share `best-position = 21` (imputed from 0 points), so the inverse-position sum is what actually orders the tail of the table by their race-day results.
+This rule applies the same way to riders with 0 total points (a large group — in the 2025 `standard` category, 91 of 142 riders end the season scoreless). The rider tiers split first by who finished anything at all; within each tier the inverse-position sum and races-participated counts decide the rest.
 
 ## How it differs from hardendurobulgaria.com
 

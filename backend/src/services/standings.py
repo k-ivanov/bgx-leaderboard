@@ -87,6 +87,13 @@ class StandingsRow:
     total_points: float
     races_participated: int
     best_position: int
+    # True when the rider has no explicit finish position in any event
+    # they entered (every row is DNF / DNS / DSQ, or position is missing).
+    # Such riders' best_position is imputed from points via
+    # position_from_points and would otherwise unfairly outrank riders
+    # whose explicit positions happen to be > 21. Used as a sort-key
+    # demoter — see the chain comment near the bottom of get_standings.
+    imputed_only: bool
     # Sum across the rider's events of (finishers − position + 1) / finishers,
     # only counting events where the rider has a real (explicit) finish
     # position. DNF / DNS / DSQ / imputed-from-points positions contribute 0.
@@ -143,6 +150,7 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
 
         entries: dict[str, RiderEventEntry] = {}
         total_inverse_position = 0.0
+        has_any_explicit_finish = False
         for event_id, day_rows in per_event.items():
             ev = event_by_id.get(event_id)
             if ev is None:
@@ -152,6 +160,7 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
             # points-derived position if no day has an explicit position.
             explicit_positions = [r.position for r in day_rows if r.position is not None]
             if explicit_positions:
+                has_any_explicit_finish = True
                 best_event_position = min(explicit_positions)
                 # Percentile contribution: 1.0 for an event win, ~1/finishers
                 # for last place. Imputed positions don't count — there's no
@@ -198,6 +207,7 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
                 total_points=total,
                 races_participated=races_participated,
                 best_position=best_position,
+                imputed_only=not has_any_explicit_finish,
                 total_inverse_position=total_inverse_position,
                 worst_event_slug=worst_event_slug,
                 worst_dropped=worst_dropped,
@@ -207,15 +217,32 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
     # Tiebreaker chain — pinned by tests/test_standings_tiebreakers.py.
     # Full rationale + worked examples in docs/scoring.md "Tiebreakers".
     #   1. Higher total_points wins.
-    #   2. Then better best_position (1 beats 2).
-    #   3. Then HIGHER total_inverse_position wins. Per-event percentile
-    #      sum (finishers − position + 1) / finishers across each event the
-    #      rider entered. Rewards "more races + better finishes" together —
-    #      replaces an older "fewer races wins" rule that produced perverse
-    #      orderings at the 0-point tail of every leaderboard.
-    #   4. Then lower race_number — final stable break, deterministic.
+    #   2. Riders with at least one explicit finish position rank above
+    #      riders whose every event was DNF / DNS / DSQ (only-imputed).
+    #      Otherwise a back-of-pack 23rd-place finish (best_position=23)
+    #      loses to a never-finished rider whose best_position is imputed
+    #      to 21 from 0 points.
+    #   3. Then better best_position (1 beats 2). Within each tier above
+    #      the imputed-only tier, this is the dominant ranking field.
+    #   4. Then HIGHER total_inverse_position wins. Per-event percentile
+    #      sum (finishers − position + 1) / finishers across each event
+    #      the rider entered. Rewards "better finishes" — events with
+    #      no explicit position contribute 0.
+    #   5. Then MORE races_participated wins. Among riders tied on
+    #      everything above (typically the imputed-only group, where
+    #      total_inverse_position is 0 for everyone), this rewards
+    #      "showing up" — a rider who DNF'd 3 races outranks one
+    #      who DNF'd 1.
+    #   6. Then lower race_number — final stable break, deterministic.
     rows.sort(
-        key=lambda r: (-r.total_points, r.best_position, -r.total_inverse_position, r.rider.race_number)
+        key=lambda r: (
+            -r.total_points,
+            r.imputed_only,
+            r.best_position,
+            -r.total_inverse_position,
+            -r.races_participated,
+            r.rider.race_number,
+        )
     )
     for idx, row in enumerate(rows):
         row.final_position = idx + 1
