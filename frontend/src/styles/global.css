@@ -99,7 +99,11 @@
     text-decoration: none;
   }
 
-  a:hover {
+  /* Wrapped in :where() so the global hover color has zero specificity
+     and never overrides explicit text-color classes (e.g. an active
+     pill with `bg-accent text-white` would otherwise turn its label
+     accent-on-accent and become invisible on hover). */
+  :where(a:hover) {
     color: theme('colors.accent.DEFAULT');
   }
 
