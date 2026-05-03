@@ -21,8 +21,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.client_ip import real_client_ip
 
 from app.api import events as events_api
 from app.api import results as results_api
@@ -80,7 +81,7 @@ def create_app() -> FastAPI:
     )
 
     # Per-IP rate limit; `track_api` decorates its route (see below).
-    limiter = Limiter(key_func=get_remote_address, default_limits=[])
+    limiter = Limiter(key_func=real_client_ip, default_limits=[])
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

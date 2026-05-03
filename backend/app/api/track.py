@@ -15,9 +15,9 @@ Defenses:
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
-from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
+from app.client_ip import real_client_ip
 from app.deps import get_session
 from app.schemas.track import TrackIn, TrackOut
 from src.analytics import (
@@ -38,7 +38,7 @@ def track_visit(
     session: Session = Depends(get_session),
 ) -> TrackOut:
     ua = request.headers.get("user-agent", "") or ""
-    ip = get_remote_address(request) or ""
+    ip = real_client_ip(request)
 
     salt = get_or_create_salt(session)
     visitor_id = visitor_id_for(salt, ip, ua)
