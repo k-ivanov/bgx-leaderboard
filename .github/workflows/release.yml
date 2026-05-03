@@ -121,7 +121,7 @@ jobs:
         working-directory: frontend
         env:
           API_URL: http://127.0.0.1:5001
-          SITE: https://bgx.example.com
+          SITE: https://hardendurobulgaria.com
           # Astro/Vite expose PUBLIC_* to client code via import.meta.env;
           # BaseLayout.astro reads this and renders it in the footer.
           PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
