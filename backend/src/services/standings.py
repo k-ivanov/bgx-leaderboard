@@ -87,6 +87,12 @@ class StandingsRow:
     total_points: float
     races_participated: int
     best_position: int
+    # Sum across the rider's events of (finishers − position + 1) / finishers,
+    # only counting events where the rider has a real (explicit) finish
+    # position. DNF / DNS / DSQ / imputed-from-points positions contribute 0.
+    # Used as a season tiebreaker after best_position; never exposed via API.
+    # See docs/scoring.md "Tiebreakers" for the rationale.
+    total_inverse_position: float
     worst_event_slug: Optional[str]
     worst_dropped: Optional[float]
 
@@ -108,6 +114,23 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
         ).scalars()
     )
 
+    # Field-size lookup for the percentile tiebreaker. Counts the number of
+    # finishers (rows with non-null position) per (event, day) within this
+    # category, then collapses to per-event by taking the max across days
+    # (so a 2-day weekend uses whichever day had the bigger field).
+    # Single pass over the data we already loaded — no extra SQL.
+    finishers_per_event_day: dict[tuple[int, int], int] = {}
+    for rider in riders:
+        for er in rider.results:
+            if er.position is None:
+                continue
+            key = (er.event_id, er.day or 1)
+            finishers_per_event_day[key] = finishers_per_event_day.get(key, 0) + 1
+    finishers_per_event: dict[int, int] = {}
+    for (eid, _day), n in finishers_per_event_day.items():
+        if n > finishers_per_event.get(eid, 0):
+            finishers_per_event[eid] = n
+
     rows: list[StandingsRow] = []
 
     for rider in riders:
@@ -119,6 +142,7 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
             per_event.setdefault(er.event_id, []).append(er)
 
         entries: dict[str, RiderEventEntry] = {}
+        total_inverse_position = 0.0
         for event_id, day_rows in per_event.items():
             ev = event_by_id.get(event_id)
             if ev is None:
@@ -129,8 +153,16 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
             explicit_positions = [r.position for r in day_rows if r.position is not None]
             if explicit_positions:
                 best_event_position = min(explicit_positions)
+                # Percentile contribution: 1.0 for an event win, ~1/finishers
+                # for last place. Imputed positions don't count — there's no
+                # real result there to rank against.
+                finishers = finishers_per_event.get(event_id, 0)
+                if finishers > 0:
+                    contribution = (finishers - best_event_position + 1) / finishers
+                    total_inverse_position += max(0.0, min(1.0, contribution))
             else:
                 best_event_position = position_from_points(total_event_points)
+                # Position was imputed (no explicit data) — contributes 0.
             entries[ev.slug] = RiderEventEntry(
                 event=ev,
                 points=total_event_points,
@@ -166,21 +198,24 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
                 total_points=total,
                 races_participated=races_participated,
                 best_position=best_position,
+                total_inverse_position=total_inverse_position,
                 worst_event_slug=worst_event_slug,
                 worst_dropped=worst_dropped,
             )
         )
 
-    # Tiebreaker chain (improvements.md P2 #14 — pinned by tests/test_standings_tiebreakers.py):
+    # Tiebreaker chain — pinned by tests/test_standings_tiebreakers.py.
+    # Full rationale + worked examples in docs/scoring.md "Tiebreakers".
     #   1. Higher total_points wins.
     #   2. Then better best_position (1 beats 2).
-    #   3. Then FEWER races_participated (more points per race = better
-    #      efficiency). This is non-standard; some championships prefer
-    #      the opposite. If you flip it, update both the test AND
-    #      docs/scoring.md.
+    #   3. Then HIGHER total_inverse_position wins. Per-event percentile
+    #      sum (finishers − position + 1) / finishers across each event the
+    #      rider entered. Rewards "more races + better finishes" together —
+    #      replaces an older "fewer races wins" rule that produced perverse
+    #      orderings at the 0-point tail of every leaderboard.
     #   4. Then lower race_number — final stable break, deterministic.
     rows.sort(
-        key=lambda r: (-r.total_points, r.best_position, r.races_participated, r.rider.race_number)
+        key=lambda r: (-r.total_points, r.best_position, -r.total_inverse_position, r.rider.race_number)
     )
     for idx, row in enumerate(rows):
         row.final_position = idx + 1
