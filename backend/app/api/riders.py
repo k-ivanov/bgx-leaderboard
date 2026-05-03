@@ -8,7 +8,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.deps import get_season, get_session
@@ -158,25 +158,28 @@ def search_riders(
     if not needle:
         return RiderSearchOut(season=SeasonRef.model_validate(season), query=q, results=[])
 
-    pattern = f"%{needle.lower()}%"
     base_q = (
         select(Rider, Category)
         .join(Category, Rider.category_id == Category.id)
         .where(Rider.season_id == season.id)
     )
 
-    # Build the OR — if needle parses as int, also match race_number.
-    conditions = [
-        Rider.first_name.ilike(pattern),
-        Rider.last_name.ilike(pattern),
-    ]
-    try:
-        rn = int(needle)
-        conditions.append(Rider.race_number == rn)
-    except ValueError:
-        pass
+    # Tokenize on whitespace and AND across tokens so "Илиян Кръстев" matches
+    # a rider whose first_name has "Илиян" AND last_name has "Кръстев". Each
+    # token still ORs across (first_name, last_name, race_number) so users
+    # can mix names with race numbers, e.g. "169 Кръстев".
+    tokens = needle.split()
+    per_token = []
+    for t in tokens:
+        pat = f"%{t.lower()}%"
+        or_terms = [Rider.first_name.ilike(pat), Rider.last_name.ilike(pat)]
+        try:
+            or_terms.append(Rider.race_number == int(t))
+        except ValueError:
+            pass
+        per_token.append(or_(*or_terms))
 
-    candidates = list(session.execute(base_q.where(or_(*conditions))).all())
+    candidates = list(session.execute(base_q.where(and_(*per_token))).all())
 
     # Rank: see docstring above.
     needle_lower = needle.lower()
