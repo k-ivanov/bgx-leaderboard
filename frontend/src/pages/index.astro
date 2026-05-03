@@ -1,0 +1,67 @@
+---
+// Landing — single CTA "Резултати" → /results.
+// frontend-restructure.md §T3.
+
+import { Image } from 'astro:assets';
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+import type { SeasonRef } from '~/lib/api.types';
+import logoHero from '~/assets/logos/logo-hero-1200w.webp';
+
+let seasons: SeasonRef[] = [];
+try {
+  const out = await api.listSeasons();
+  seasons = [...out.seasons].sort((a, b) => b.year - a.year);
+} catch {
+  seasons = [];
+}
+
+const current = seasons.find(s => s.is_current);
+const headNavYear = current?.year ?? (seasons[0]?.year ?? new Date().getFullYear());
+const allYears = seasons.map(s => s.year);
+
+const title = `${copy.seo.brand} · ${copy.home.h1Sub}`;
+const description = copy.home.lead;
+---
+<BaseLayout
+  title={title}
+  description={description}
+  year={headNavYear}
+  activeYear={headNavYear}
+  allYears={allYears}
+  currentNav="none"
+  trackPage="home"
+>
+  <section class="mx-auto flex max-w-2xl flex-col items-center px-4 py-10 text-center md:py-16">
+    <div class="mb-8 w-full max-w-[280px] md:max-w-[360px]">
+      <Image
+        src={logoHero}
+        alt={copy.seo.brand}
+        widths={[280, 360, 720]}
+        sizes="(max-width: 768px) 280px, 360px"
+        loading="eager"
+        class="h-auto w-full"
+      />
+    </div>
+
+    <h1 class="text-3xl md:text-5xl font-extrabold tracking-[-0.02em] uppercase">
+      {copy.home.h1}
+    </h1>
+    <p class="mt-2 text-xl md:text-2xl font-semibold tracking-[-0.01em] text-fg-muted uppercase">
+      {copy.home.h1Sub}
+    </p>
+
+    <p class="mt-6 max-w-xl text-[16px] md:text-[17px] leading-relaxed text-fg-muted">
+      {copy.home.lead}
+    </p>
+
+    <a
+      href="/results"
+      class="mt-10 inline-flex items-center gap-2 rounded-xl bg-accent px-8 py-4 text-lg font-bold uppercase tracking-[0.04em] text-white shadow-sm transition-colors hover:bg-accent-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+    >
+      {copy.home.cta}
+      <span aria-hidden="true">→</span>
+    </a>
+  </section>
+</BaseLayout>

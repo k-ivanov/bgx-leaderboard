@@ -1,0 +1,38 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+
+// Try to pick the current year for the "Go to 2026 Leaderboard" CTA.
+let year = 2026;
+let allYears: number[] = [2026];
+try {
+  const seasons = await api.listSeasons();
+  const current = seasons.seasons.find(s => s.is_current) ?? seasons.seasons[0];
+  if (current) year = current.year;
+  allYears = seasons.seasons.map(s => s.year);
+} catch {
+  // Build may run before the API is reachable; fall back to defaults.
+}
+---
+<BaseLayout
+  title={copy.notFound.pageTitle}
+  description={copy.notFound.metaDescription}
+  noindex
+  year={year}
+  activeYear={year}
+  allYears={allYears}
+  currentNav="none"
+  trackPage="other"
+>
+  <section class="py-16 text-center">
+    <h1 class="text-7xl font-extrabold text-accent tracking-tight">{copy.notFound.h1}</h1>
+    <p class="mt-6 text-lg text-fg">{copy.notFound.subtitle}</p>
+    <p class="mt-2 text-sm text-fg-muted">{copy.notFound.helpBody}</p>
+    <p class="mt-10">
+      <a href={`/${year}/expert`} class="text-accent hover:text-accent-strong text-base">
+        {copy.notFound.ctaCurrentLeaderboard(year)}
+      </a>
+    </p>
+  </section>
+</BaseLayout>

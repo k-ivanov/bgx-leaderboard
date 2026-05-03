@@ -1,5 +1,6 @@
-# Virtual Environment
+# Virtual environments
 venv/
+.venv/
 env/
 ENV/
 
@@ -10,23 +11,40 @@ __pycache__/
 *.so
 .Python
 
-# IDE
+# IDE / OS
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Environment variables
+# Secrets / local env
 .env
 .env.local
 
-# Database files
-data/visits.db
+# Legacy SQLite artifacts (we now use Postgres)
+*.db
 *.db-journal
 *.db-shm
 *.db-wal
+
+# Test & build artifacts
+.pytest_cache/
+dist/
+build/
+
+# gstack
+.gstack/
+
+# Astro / frontend
+frontend/.astro/
+frontend/dist/
+frontend/node_modules/
+
+# Database dumps — pg_dump output from `make db-dump` / `db-dump-prod`.
+# Local snapshots and prod backups stay on the developer's machine; they
+# may contain visit analytics PII (visitor_id hashes) and prod credentials
+# in the connection-info comments.
+db_dumps/

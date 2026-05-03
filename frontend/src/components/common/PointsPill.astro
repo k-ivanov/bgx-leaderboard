@@ -1,0 +1,23 @@
+---
+interface Props {
+  points: number | null | undefined;
+}
+
+const { points: raw } = Astro.props;
+const points: number | null = raw ?? null;
+const n = points ?? 0;
+
+const toneClass =
+  points === null
+    ? 'bg-transparent text-fg-faint'
+    : n >= 25
+    ? 'bg-[rgba(251,191,36,0.16)] text-podium-gold'
+    : n === 0
+    ? 'bg-transparent text-fg-faint'
+    : 'bg-accent-soft text-accent-strong';
+
+const label = points === null ? '—' : String(n % 1 === 0 ? n : n.toFixed(1));
+---
+<span class:list={['inline-block rounded-pill px-2.5 py-0.5 text-xs font-semibold points', toneClass]}>
+  {label}
+</span>

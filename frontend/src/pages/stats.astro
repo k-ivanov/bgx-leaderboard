@@ -1,0 +1,39 @@
+---
+// StatsView — /stats (private analytics)
+//
+// The static HTML ships ZERO data. A Vue island fetches /api/stats from
+// the browser; if STATS_PASSWORD is configured server-side, the API
+// returns 401 and the island shows an inline login form. Credentials
+// are kept in sessionStorage so they vanish when the tab closes.
+//
+// noindex/nofollow + robots.txt Disallow keep the URL out of search.
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import StatsView from '~/components/StatsView.vue';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+
+const seasons = await api.listSeasons();
+const current = seasons.seasons.find(s => s.is_current) ?? seasons.seasons[0];
+const year = current?.year ?? new Date().getFullYear();
+const allYears = seasons.seasons.map(s => s.year);
+---
+<BaseLayout
+  title={copy.seo.statsTitle}
+  description={copy.seo.statsDescription}
+  noindex
+  year={year}
+  activeYear={year}
+  allYears={allYears}
+  currentNav="stats"
+  trackPage="stats"
+>
+  <section class="page-header mb-8">
+    <h1 class="text-2xl md:text-[32px] font-extrabold tracking-[-0.02em]">
+      {copy.stats.h1}
+    </h1>
+    <p class="mt-2 text-[15px] text-fg-muted">{copy.stats.subtitleLast30}</p>
+  </section>
+
+  <StatsView client:only="vue" />
+</BaseLayout>

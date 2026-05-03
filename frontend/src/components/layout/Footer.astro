@@ -1,0 +1,12 @@
+---
+import { copy } from '~/lib/copy';
+
+interface Props {
+  appVersion: string;
+}
+
+const { appVersion } = Astro.props;
+---
+<footer class="footer mt-10 border-t border-border py-6 text-center text-xs text-fg-faint">
+  <p>{copy.app.footer(appVersion)}</p>
+</footer>

@@ -1,0 +1,10 @@
+---
+import { formatTime } from '~/lib/format';
+
+interface Props {
+  ms: number | null | undefined;
+}
+
+const { ms } = Astro.props;
+---
+<span class="mono">{formatTime(ms)}</span>

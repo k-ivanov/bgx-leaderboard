@@ -1,0 +1,336 @@
+# BGX Navigation Dashboard — Makefile
+#
+# Common workflows. Run `make` or `make help` to see every target with a
+# one-line description. Targets are grouped by the emoji prefix below:
+#   🚀 start / stop          local dev
+#   🗄  database             postgres lifecycle + seeding
+#   🧪 test                  pytest + astro check
+#   🔧 build / deploy        production image + release helpers
+#   🧹 clean                 remove caches + build output
+#   🩺 smoke                 quick healthchecks against a running instance
+
+# ----------------------------------------------------------------------------
+# Config (override with `make VAR=value <target>`)
+# ----------------------------------------------------------------------------
+VENV            ?= .venv
+PYTHON          ?= python3
+PORT            ?= 5001
+HOST            ?= 0.0.0.0
+FRONTEND_PORT   ?= 4321
+IMAGE_TAG       ?= bgx-dashboard:latest
+API_URL         ?= http://127.0.0.1:$(PORT)
+COMPOSE         ?= docker compose
+
+# Use an absolute path so cd'ing around doesn't confuse us.
+ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+BACKEND  := $(ROOT)/backend
+FRONTEND := $(ROOT)/frontend
+
+# Colors for the help banner (fall back to plain text on dumb terminals).
+ifneq ($(TERM),)
+    C_RESET := \033[0m
+    C_BOLD  := \033[1m
+    C_DIM   := \033[2m
+    C_GOLD  := \033[38;5;214m
+else
+    C_RESET :=
+    C_BOLD  :=
+    C_DIM   :=
+    C_GOLD  :=
+endif
+
+.DEFAULT_GOAL := help
+
+# ============================================================================
+# Help
+# ============================================================================
+
+.PHONY: help
+help: ## Show this help
+	@printf "$(C_GOLD)$(C_BOLD)BGX Navigation Dashboard$(C_RESET) — make targets\n"
+	@printf "  $(C_DIM)(override vars with \`make VAR=value target\`)$(C_RESET)\n\n"
+	@awk 'BEGIN {FS = ":.*?## "} \
+	      /^# ==+$$/ { inhdr=1; next } \
+	      inhdr==1 && /^# / { sub(/^# /,""); printf "$(C_BOLD)%s$(C_RESET)\n", $$0; inhdr=2; next } \
+	      inhdr==2 && /^# ==+$$/ { inhdr=0; next } \
+	      /^[a-zA-Z0-9_.-]+:.*## / { printf "  $(C_GOLD)%-22s$(C_RESET) %s\n", $$1, $$2 } \
+	      /^$$/ { inhdr=0 }' $(MAKEFILE_LIST)
+	@printf "\n"
+
+# ============================================================================
+# 🚀 Start / stop — local dev
+# ============================================================================
+
+.PHONY: install
+install: $(BACKEND)/$(VENV)/.installed-backend $(FRONTEND)/node_modules ## Install backend + frontend deps (one-time setup)
+	@printf "$(C_GOLD)✓$(C_RESET) backend + frontend deps installed\n"
+
+# Stamp file lives *inside* the venv so `make clean-venv` (which nukes the
+# venv) also removes the stamp, forcing a re-install on the next `make install`.
+$(BACKEND)/$(VENV)/.installed-backend: $(BACKEND)/pyproject.toml
+	@printf "$(C_GOLD)→$(C_RESET) creating venv and installing backend deps…\n"
+	@cd $(BACKEND) && $(PYTHON) -m venv $(VENV) && \
+	  $(VENV)/bin/pip install -q --upgrade pip && \
+	  $(VENV)/bin/pip install -q -e '.[dev]'
+	@touch $@
+
+$(FRONTEND)/node_modules: $(FRONTEND)/package.json $(FRONTEND)/package-lock.json
+	@printf "$(C_GOLD)→$(C_RESET) installing frontend deps…\n"
+	@cd $(FRONTEND) && npm install --no-audit --no-fund
+	@touch $@
+
+.PHONY: dev
+dev: ## Run backend + frontend in the foreground (Ctrl-C stops both)
+	@printf "$(C_GOLD)→$(C_RESET) starting dev stack. Ctrl-C to stop.\n"
+	@$(MAKE) db-up
+	@# Run both targets as direct children of this shell so `wait` can see
+	@# them and signals propagate. The (... &) subshell pattern disowns the
+	@# backgrounded process and makes `wait` exit immediately.
+	@trap 'kill $$(jobs -p) 2>/dev/null; $(MAKE) --no-print-directory dev-stop' INT TERM EXIT; \
+	  $(MAKE) --no-print-directory dev-backend & \
+	  printf "$(C_GOLD)→$(C_RESET) waiting for backend :$(PORT)…\n"; \
+	  for i in $$(seq 1 30); do \
+	    if curl -fsS http://127.0.0.1:$(PORT)/health >/dev/null 2>&1; then \
+	      printf "$(C_GOLD)✓$(C_RESET) backend ready after %ss\n" $$i; break; \
+	    fi; sleep 1; \
+	  done; \
+	  $(MAKE) --no-print-directory dev-frontend & \
+	  wait
+
+.PHONY: dev-backend
+dev-backend: $(BACKEND)/$(VENV)/.installed-backend ## Start FastAPI (uvicorn --reload) on :5001 — admin + stats enabled with dev password
+	@printf "$(C_GOLD)→$(C_RESET) admin: http://$(HOST):$(PORT)/admin   user=admin   pass=$${ADMIN_PASSWORD:-letmein}\n"
+	@printf "$(C_GOLD)→$(C_RESET) stats: http://$(HOST):$(PORT)/stats   user=admin   pass=$${STATS_PASSWORD:-letmein}\n"
+	@cd $(BACKEND) && \
+	  . $(VENV)/bin/activate && \
+	  PORT=$(PORT) HOST=$(HOST) \
+	  ADMIN_PASSWORD=$${ADMIN_PASSWORD:-letmein} \
+	  STATS_PASSWORD=$${STATS_PASSWORD:-letmein} \
+	  uvicorn app.main:app --host $(HOST) --port $(PORT) --reload
+
+.PHONY: dev-frontend
+dev-frontend: $(FRONTEND)/node_modules ## Start Astro dev server on :4321 (proxies /api to backend)
+	@cd $(FRONTEND) && npm run dev -- --port $(FRONTEND_PORT)
+
+.PHONY: dev-stop
+dev-stop: ## Kill local dev processes (backend + frontend)
+	@pkill -f "uvicorn app.main:app" 2>/dev/null || true
+	@pkill -f "astro dev"           2>/dev/null || true
+	@printf "$(C_GOLD)✓$(C_RESET) dev processes stopped\n"
+
+.PHONY: stop
+stop: dev-stop db-down ## Stop everything local (dev processes + Postgres container)
+
+# ============================================================================
+# 🗄 Database — postgres + seeding
+# ============================================================================
+
+.PHONY: db-up
+db-up: ## Start the local Postgres container (docker compose)
+	@$(COMPOSE) up -d postgres
+	@for i in $$(seq 1 30); do \
+	   if docker exec bgx-postgres pg_isready -U bgx -d bgx >/dev/null 2>&1; then \
+	     printf "$(C_GOLD)✓$(C_RESET) postgres healthy after %ss\n" $$i; exit 0; \
+	   fi; sleep 1; \
+	 done; \
+	 printf "$(C_GOLD)✗$(C_RESET) postgres did not become ready within 30s\n" && exit 1
+
+.PHONY: db-down
+db-down: ## Stop the Postgres container (keeps the volume)
+	@$(COMPOSE) stop postgres 2>&1 | tail -1
+	@printf "$(C_GOLD)✓$(C_RESET) postgres stopped (data preserved)\n"
+
+.PHONY: db-nuke
+db-nuke: ## ⚠️ Drop postgres volume + recreate (destroys all data)
+	@printf "$(C_GOLD)⚠$(C_RESET)  this will delete the bgx-pg-data volume. Press Enter to continue, Ctrl-C to abort.\n"
+	@read _
+	@$(COMPOSE) down -v postgres
+	@$(MAKE) db-up
+
+.PHONY: migrate
+migrate: $(BACKEND)/$(VENV)/.installed-backend db-up ## Apply all pending alembic migrations
+	@cd $(BACKEND) && . $(VENV)/bin/activate && alembic upgrade head
+
+.PHONY: seed
+seed: seed-all ## Clean DB + re-import every year folder under scripts/seed_data/
+
+.PHONY: seed-all
+seed-all: migrate ## Wipe championship data + import every year folder (keeps visits)
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all
+
+.PHONY: seed-new
+seed-new: migrate ## Import every CSV under seed_data/ that is NOT yet logged. Idempotent. Usage: make seed-new [YEAR=2026]
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_new $(if $(YEAR),--year $(YEAR),)
+
+.PHONY: seed-year
+seed-year: migrate ## Import ONLY one year's CSVs (add-only). Usage: make seed-year YEAR=2024
+	@if [ -z "$(YEAR)" ]; then \
+	  printf "Usage: make seed-year YEAR=2024  (or 2025, 2026, …)\n"; exit 2; \
+	fi
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.seed_all --year $(YEAR) --no-wipe
+
+.PHONY: import-event
+import-event: ## Import one (race, category) CSV. Usage: make import-event FILE=... CAT=expert CAT_NAME="Expert" EVENT=karnare EVENT_NAME="Kyrnare" DATE=2026-04-18 YEAR=2026
+	@if [ -z "$(FILE)" ] || [ -z "$(CAT)" ] || [ -z "$(CAT_NAME)" ] || [ -z "$(EVENT)" ] || [ -z "$(EVENT_NAME)" ] || [ -z "$(DATE)" ]; then \
+	  printf "Usage: make import-event FILE=<csv> CAT=expert CAT_NAME=\"Expert\" EVENT=karnare EVENT_NAME=\"Kyrnare\" DATE=2026-04-18 [YEAR=2026]\n"; \
+	  exit 2; \
+	fi
+	@cd $(BACKEND) && . $(VENV)/bin/activate && $(PYTHON) -m scripts.import_event \
+	  --file "$(FILE)" \
+	  --season "$(or $(YEAR),2026)" \
+	  --category "$(CAT)" --category-name "$(CAT_NAME)" \
+	  --event "$(EVENT)" --event-name "$(EVENT_NAME)" --event-date "$(DATE)"
+
+.PHONY: db-shell
+db-shell: ## Open a psql shell against the local Postgres
+	@docker exec -it bgx-postgres psql -U bgx -d bgx
+
+.PHONY: db-reset
+db-reset: db-nuke migrate seed ## Nuke + recreate the DB and seed 2025
+
+.PHONY: db-dump
+db-dump: ## Dump local Postgres → db_dumps/local-<ts>.sql.gz. Add ARGS="--data-only" for data only.
+	@$(ROOT)/scripts/db-dump.sh local $(ARGS)
+
+.PHONY: db-dump-prod
+db-dump-prod: ## Dump prod Postgres → db_dumps/prod-<ts>.sql.gz. Set PROD_DATABASE_URL or have `railway` linked.
+	@$(ROOT)/scripts/db-dump.sh prod $(ARGS)
+
+.PHONY: db-restore
+db-restore: ## Restore a dump into the local DB. Usage: make db-restore FILE=db_dumps/local-….sql.gz
+	@if [ -z "$(FILE)" ]; then printf "Usage: make db-restore FILE=<path-to-dump>\n"; exit 2; fi
+	@$(ROOT)/scripts/db-restore.sh local "$(FILE)" $(ARGS)
+
+.PHONY: db-seed-prod
+db-seed-prod: ## Push a local data dump → prod (assumes `alembic upgrade head` ran on prod). Usage: make db-seed-prod FILE=db_dumps/local-data-….sql.gz
+	@if [ -z "$(FILE)" ]; then printf "Usage: make db-seed-prod FILE=<path-to-data-only-dump>\n"; exit 2; fi
+	@printf "$(C_GOLD)⚠$(C_RESET)  This will overwrite production data. Press Enter to continue, Ctrl-C to abort.\n"
+	@read _
+	@$(ROOT)/scripts/db-restore.sh prod "$(FILE)" --yes --data-only
+
+# ============================================================================
+# 🧪 Test + type-check
+# ============================================================================
+
+.PHONY: types
+types: $(FRONTEND)/node_modules ## Regenerate frontend api.openapi.ts; fail if it drifted from the running backend
+	@printf "$(C_GOLD)→$(C_RESET) regenerating api.openapi.ts (backend must be running on :$(PORT))\n"
+	@cd $(FRONTEND) && STATS_PASSWORD=$${STATS_PASSWORD:-letmein} npm run generate:api-types
+	@if ! git diff --quiet -- $(FRONTEND)/src/lib/api.openapi.ts; then \
+	  printf "$(C_GOLD)✗$(C_RESET) api.openapi.ts is OUT OF SYNC — diff above. Commit the regen.\n"; \
+	  git --no-pager diff -- $(FRONTEND)/src/lib/api.openapi.ts; \
+	  exit 1; \
+	fi
+	@printf "$(C_GOLD)✓$(C_RESET) api.openapi.ts is in sync\n"
+
+.PHONY: test
+test: $(BACKEND)/$(VENV)/.installed-backend db-up ## Run the full backend pytest suite (89 tests)
+	@cd $(BACKEND) && . $(VENV)/bin/activate && \
+	  $(PYTHON) -m pytest -p no:cacheprovider -o "pythonpath=."
+
+.PHONY: test-fast
+test-fast: $(BACKEND)/$(VENV)/.installed-backend ## Run only DB-free backend tests (no Postgres required)
+	@cd $(BACKEND) && . $(VENV)/bin/activate && \
+	  $(PYTHON) -m pytest --noconftest -p no:cacheprovider --override-ini="addopts=" \
+	    -o "pythonpath=." \
+	    tests/test_slug.py tests/test_mount_order.py tests/test_cors.py
+
+.PHONY: check-frontend
+check-frontend: $(FRONTEND)/node_modules ## Run Astro type-check (`astro check`)
+	@cd $(FRONTEND) && npm run check
+
+.PHONY: check
+check: test check-frontend ## Full check — pytest + astro check
+
+.PHONY: gen-api-types
+gen-api-types: $(FRONTEND)/node_modules ## Regenerate frontend TS types from /api/openapi.json
+	@printf "$(C_GOLD)→$(C_RESET) regenerating TS types against $(API_URL)/api/openapi.json…\n"
+	@curl -fsS "$(API_URL)/health" > /dev/null || { \
+	  printf "$(C_GOLD)✗$(C_RESET) backend not reachable at $(API_URL). Run \`make dev-backend\` first.\n"; \
+	  exit 1; \
+	}
+	@cd $(FRONTEND) && npm run generate:api-types
+
+# ============================================================================
+# 🔧 Build + deploy
+# ============================================================================
+
+.PHONY: build-frontend
+build-frontend: $(FRONTEND)/node_modules ## Astro static build → frontend/dist/ (needs backend reachable)
+	@curl -fsS "$(API_URL)/health" > /dev/null || { \
+	  printf "$(C_GOLD)✗$(C_RESET) backend not reachable at $(API_URL). Run \`make dev-backend\` first.\n"; \
+	  exit 1; \
+	}
+	@cd $(FRONTEND) && API_URL=$(API_URL) npm run build
+
+.PHONY: build
+build: ## Build the production Docker image (orchestrates API + Docker)
+	@./scripts/build-image.sh $(IMAGE_TAG)
+
+.PHONY: rebuild
+rebuild: clean-dist build ## Clean the previous dist + rebuild the production image
+
+.PHONY: run
+run: ## Run the prod image locally against local Postgres on :5001
+	@docker rm -f bgx-run 2>/dev/null || true
+	@docker run -d --rm --name bgx-run \
+	    -p $(PORT):5001 \
+	    -e DATABASE_URL=postgresql+psycopg2://bgx:bgx@host.docker.internal:5432/bgx \
+	    $(IMAGE_TAG)
+	@printf "$(C_GOLD)→$(C_RESET) container running. Logs:  docker logs -f bgx-run\n"
+	@printf "                              Stop:  make run-stop\n"
+
+.PHONY: run-stop
+run-stop: ## Stop the locally-running prod image
+	@docker stop bgx-run 2>/dev/null || true
+	@printf "$(C_GOLD)✓$(C_RESET) container stopped\n"
+
+# ============================================================================
+# 🩺 Smoke tests
+# ============================================================================
+
+.PHONY: health
+health: ## curl /health (uses API_URL)
+	@curl -sw "  [%{http_code}]\n" $(API_URL)/health
+
+.PHONY: smoke
+smoke: ## Hit the headline endpoints and print a brief report
+	@printf "$(C_BOLD)/health$(C_RESET)\n"
+	@curl -sw "  [%{http_code}]\n" $(API_URL)/health
+	@printf "\n$(C_BOLD)/api/seasons$(C_RESET)\n"
+	@curl -s $(API_URL)/api/seasons | $(PYTHON) -m json.tool | head -8
+	@printf "\n$(C_BOLD)/api/seasons/2025/standings/expert (leader)$(C_RESET)\n"
+	@curl -s $(API_URL)/api/seasons/2025/standings/expert | $(PYTHON) -c "import json,sys; d=json.load(sys.stdin); r=d['rows'][0]; print(f'  #{r[\"rider\"][\"race_number\"]} {r[\"rider\"][\"first_name\"]} {r[\"rider\"][\"last_name\"]} — {r[\"total_points\"]} точки')"
+	@printf "\n$(C_BOLD)/api/nonexistent (should be JSON 404)$(C_RESET)\n"
+	@curl -sw "  [%{http_code} %{content_type}]\n" $(API_URL)/api/nonexistent
+
+.PHONY: logs
+logs: ## Tail dashboard container logs
+	@docker logs -f bgx-run 2>&1 | tail -100 || docker logs -f bgx-dashboard 2>&1 | tail -100
+
+# ============================================================================
+# 🧹 Cleanup
+# ============================================================================
+
+.PHONY: clean
+clean: clean-cache clean-dist ## Remove caches + build output (keeps venv, keeps DB)
+	@printf "$(C_GOLD)✓$(C_RESET) caches + dist cleaned\n"
+
+.PHONY: clean-cache
+clean-cache: ## Remove __pycache__, .pytest_cache, .astro, .mypy_cache
+	@find $(BACKEND) -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find $(BACKEND) -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
+	@rm -rf $(FRONTEND)/.astro $(FRONTEND)/.mypy_cache 2>/dev/null || true
+
+.PHONY: clean-dist
+clean-dist: ## Remove frontend/dist/
+	@rm -rf $(FRONTEND)/dist
+
+.PHONY: clean-venv
+clean-venv: ## Remove backend virtualenv
+	@rm -rf $(BACKEND)/$(VENV)
+
+.PHONY: clean-all
+clean-all: clean clean-venv ## Nuke caches + venv + node_modules (leaves DB data)
+	@rm -rf $(FRONTEND)/node_modules
+	@printf "$(C_GOLD)✓$(C_RESET) everything derived cleaned (DB + source intact)\n"

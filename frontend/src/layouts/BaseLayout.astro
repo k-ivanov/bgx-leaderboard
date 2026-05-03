@@ -1,0 +1,167 @@
+---
+// BaseLayout.astro — the site shell used by every page.
+//
+// Responsibilities:
+//   - <html>/<head>/<body> boilerplate
+//   - Self-hosted fonts: Oswald (display: headings, nav, buttons) + Barlow (body)
+//   - Global stylesheet with token system + print styles
+//   - Per-page SEO head tags (title, meta desc, canonical, OG, Twitter, JSON-LD)
+//   - Sticky top nav (brand + year switcher + section links)
+//   - Footer
+//
+// Takes: page-specific title/description/canonical, year context for the
+// nav, currentNav selector, and an optional JSON-LD structured-data object.
+
+// Oswald (variable axis) — display family for headings, nav, buttons.
+import '@fontsource-variable/oswald';
+// Barlow — body family. Static weights since @fontsource doesn't ship a variable build.
+import '@fontsource/barlow/400.css';
+import '@fontsource/barlow/500.css';
+import '@fontsource/barlow/600.css';
+import '@fontsource/barlow/700.css';
+import '~/styles/global.css';
+
+import { copy } from '~/lib/copy';
+import Nav from '~/components/layout/Nav.astro';
+import Footer from '~/components/layout/Footer.astro';
+
+const SITE_NAME = copy.seo.siteName;
+
+interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  ogImage?: string;
+  noindex?: boolean;
+  year: number;
+  activeYear: number;
+  allYears: number[];
+  currentNav: 'leaderboard' | 'races' | 'stats' | 'rider' | 'none';
+  jsonLd?: object;
+  trackPage: 'home' | 'leaderboard' | 'race' | 'rider' | 'races_list' | 'stats' | 'other';
+  trackCategory?: string | null;
+  trackEventSlug?: string | null;
+  trackRiderSlug?: string | null;
+  /**
+   * Skip the inline /api/track POST. Use on pages where a Vue island
+   * owns tracking — e.g. /results, where the URL state is filled in
+   * client-side and tracking the build-time defaults would mis-bucket
+   * every visit.
+   */
+  skipTracking?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonical,
+  ogImage = '/og-default.png',
+  noindex = false,
+  year,
+  activeYear,
+  allYears,
+  currentNav,
+  jsonLd,
+  trackPage,
+  trackCategory = null,
+  trackEventSlug = null,
+  trackRiderSlug = null,
+  skipTracking = false,
+} = Astro.props;
+
+const trackPayload = {
+  page: trackPage,
+  category: trackCategory,
+  season_year: year,
+  event_slug: trackEventSlug,
+  rider_slug: trackRiderSlug,
+};
+
+const site = Astro.site?.toString().replace(/\/+$/, '') ?? '';
+const pathname = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const canonicalUrl = canonical ?? (site ? `${site}${pathname}` : pathname);
+const ogImageUrl = ogImage.startsWith('http')
+  ? ogImage
+  : `${site}${ogImage.startsWith('/') ? ogImage : `/${ogImage}`}`;
+
+const appVersion = '0.2.0';
+---
+<!DOCTYPE html>
+<html lang="bg">
+  <head>
+    {/* Early theme init — runs BEFORE any CSS/body paint so the correct
+       theme is applied without a flash of the default. Reads the bgx_theme
+       cookie; falls back to `light`. */}
+    <script is:inline>
+      (function () {
+        try {
+          var m = document.cookie.match(/(?:^|; )bgx_theme=([^;]+)/);
+          var theme = m ? decodeURIComponent(m[1]) : 'light';
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (_) { /* default = light, no class needed */ }
+      })();
+    </script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    {jsonLd && (
+      <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    )}
+  </head>
+  <body>
+    <Nav
+      year={year}
+      activeYear={activeYear}
+      allYears={allYears}
+      currentNav={currentNav}
+    />
+    <main class="max-w-container mx-auto px-4 py-5 md:px-6 md:py-8">
+      <slot />
+    </main>
+    <Footer appVersion={appVersion} />
+    {/* Cookieless visit tracking — posts once per page load. No cookies,
+       no localStorage, no sessionStorage: visitor_id is derived server-side
+       from a daily-rotating salt, so ePrivacy consent is not required.
+       skipTracking=true delegates to a Vue island whose state is the
+       authoritative tracker (e.g. /results — see ResultsView.vue). */}
+    {!skipTracking && (
+      <script is:inline define:vars={{ trackPayload }}>
+        (function () {
+          try {
+            fetch('/api/track', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(trackPayload),
+              keepalive: true,
+            }).catch(function () { /* fire-and-forget */ });
+          } catch (_) { /* never break the page for analytics */ }
+        })();
+      </script>
+    )}
+  </body>
+</html>

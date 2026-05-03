@@ -1,0 +1,99 @@
+---
+import { Image } from 'astro:assets';
+import { copy } from '~/lib/copy';
+import logoHeader from '~/assets/logos/logo-header-200w.webp';
+import RiderSearch from '~/components/RiderSearch.vue';
+
+interface Props {
+  year: number;
+  activeYear: number;
+  allYears: number[];
+  currentNav: 'leaderboard' | 'races' | 'stats' | 'rider' | 'none';
+}
+
+const { activeYear, currentNav } = Astro.props;
+---
+<nav class="sticky top-0 z-20 border-b border-border bg-bg-base/90 backdrop-blur nav">
+  <div class="max-w-container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
+    <a href="/" class="flex items-center gap-2.5 text-[15px] font-extrabold tracking-tight">
+      <Image
+        src={logoHeader}
+        alt=""
+        width={36}
+        height={42}
+        densities={[1, 2, 3]}
+        loading="eager"
+        decoding="sync"
+        class="h-9 w-auto flex-none"
+      />
+      <span class="leading-none">
+        <span>{copy.app.brand.replace('.', '')}</span><span class="text-accent"></span>
+      </span>
+    </a>
+
+    <div class="flex items-center gap-4 text-[15px] md:text-[16px] font-medium uppercase tracking-[0.04em] text-fg-muted">
+      <RiderSearch defaultYear={activeYear} client:only="vue" />
+      <a
+        href={`/results?season=${activeYear}`}
+        class:list={[
+          'hover:text-fg transition-colors',
+          currentNav === 'leaderboard' && 'text-fg',
+        ]}
+      >
+        {copy.nav.leaderboard}
+      </a>
+
+      {/* Theme toggle — aria-label flips based on current theme so screen
+         readers announce the correct action. Icon also swaps via CSS classes
+         controlled by `<html class="dark">`. */}
+      <button
+        type="button"
+        data-theme-toggle
+        class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-bg-elevated text-fg-muted transition-colors hover:border-accent hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        aria-label={copy.common.themeToggleToLight}
+        data-label-to-light={copy.common.themeToggleToLight}
+        data-label-to-dark={copy.common.themeToggleToDark}
+      >
+        {/* Sun — visible in dark mode, click to switch to light */}
+        <svg class="h-4 w-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+        </svg>
+        {/* Moon — visible in light mode, click to switch to dark */}
+        <svg class="h-4 w-4 block dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script is:inline>
+    (function () {
+      var btn = document.querySelector('[data-theme-toggle]');
+      if (!btn) return;
+      var root = document.documentElement;
+
+      function syncLabel() {
+        var isDark = root.classList.contains('dark');
+        btn.setAttribute(
+          'aria-label',
+          isDark
+            ? btn.getAttribute('data-label-to-light')
+            : btn.getAttribute('data-label-to-dark'),
+        );
+      }
+      syncLabel();
+
+      btn.addEventListener('click', function () {
+        var isDark = root.classList.toggle('dark');
+        var value = isDark ? 'dark' : 'light';
+        // 1 year, all paths, lax (no cross-site concerns for a preference)
+        document.cookie =
+          'bgx_theme=' + value +
+          '; max-age=' + (60 * 60 * 24 * 365) +
+          '; path=/; samesite=lax';
+        syncLabel();
+      });
+    })();
+  </script>
+</nav>
