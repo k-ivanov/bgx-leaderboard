@@ -1,0 +1,131 @@
+name: Release image (GHCR)
+
+# Builds the production Docker image and pushes it to GitHub Container
+# Registry. Triggered on every push to `main` (after merging a PR), or
+# manually via the Actions UI.
+#
+# The Astro build needs a reachable FastAPI to enumerate static paths via
+# getStaticPaths. We stand up Postgres + uvicorn as services here (same
+# pattern as ci.yml), run `npm run build`, and ship the resulting
+# frontend/dist into the Docker image via PREBUILT_DIST=1. Railway can
+# then pull the image without ever needing to reach a backend itself.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    name: Build + push image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: bgx
+          POSTGRES_PASSWORD: bgx
+          POSTGRES_DB: bgx
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bgx"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Migrate
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://bgx:bgx@localhost:5432/bgx
+        run: alembic upgrade head
+
+      - name: Start backend
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://bgx:bgx@localhost:5432/bgx
+          STATS_PASSWORD: letmein
+          ADMIN_PASSWORD: letmein
+        run: |
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 5001 > /tmp/uvicorn.log 2>&1 &
+          for i in {1..20}; do curl -fsS http://127.0.0.1:5001/health && break; sleep 1; done
+
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend (writes frontend/dist)
+        working-directory: frontend
+        env:
+          API_URL: http://127.0.0.1:5001
+          SITE: https://bgx.example.com
+        run: npm run build
+
+      - name: Backend log on failure
+        if: failure()
+        run: tail -200 /tmp/uvicorn.log
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Tags: `latest` on main, plus the short SHA for traceable rollback.
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+
+      - name: Build + push image (uses pre-built frontend/dist)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          build-args: |
+            PREBUILT_DIST=1
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -4,10 +4,17 @@
 #   Stage 1 (node)   : builds the Astro SSG frontend against a reachable FastAPI.
 #   Stage 2 (python) : runtime — FastAPI serves /api/* and mounts dist/ at /.
 #
-# The Astro build calls the FastAPI backend via getStaticPaths at build time.
-# Pass `--build-arg API_URL=http://host.docker.internal:5001` locally, or point
-# at a staging/production API in CI. See scripts/build-image.sh for the
-# orchestrated local workflow.
+# Two build modes for Stage 1:
+#   - From-scratch (default): Astro calls the FastAPI backend via
+#     getStaticPaths at build time. Needs a reachable API. Locally, pass
+#     `--build-arg API_URL=http://host.docker.internal:5001` and run
+#     scripts/build-image.sh — it stands up the host backend first.
+#   - Pre-built: the caller has already produced `frontend/dist` (e.g., a
+#     GitHub Actions job that ran `npm run build` against a services-based
+#     Postgres + uvicorn). Pass `--build-arg PREBUILT_DIST=1` and Stage 1
+#     skips npm install + build entirely. This is what
+#     `.github/workflows/release.yml` uses to ship to GHCR → Railway,
+#     since Railway's build environment can't reach a backend.
 
 ###############################################################################
 # Stage 1 — frontend build
@@ -15,19 +22,27 @@
 FROM node:20-alpine AS frontend
 
 ARG API_URL=http://host.docker.internal:5001
+ARG PREBUILT_DIST=0
 ENV API_URL=${API_URL} \
     NODE_ENV=production
 
 WORKDIR /work
 
-# Install Node deps (cached as a separate layer — rebuilds only on lockfile change)
+# Install Node deps only when we're building from scratch.
+# (Cached as a separate layer — rebuilds only on lockfile change.)
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN if [ "$PREBUILT_DIST" != "1" ]; then npm ci --no-audit --no-fund; fi
 
-# Copy sources and build
+# Copy sources (including dist/ when PREBUILT_DIST=1).
 COPY frontend/ ./
-RUN echo "Building Astro against API at ${API_URL}" && \
-    npm run build
+RUN if [ "$PREBUILT_DIST" = "1" ]; then \
+      echo "Using pre-built dist/ from build context"; \
+      test -d dist && [ -n "$(ls -A dist 2>/dev/null)" ] \
+        || { echo "ERROR: PREBUILT_DIST=1 but frontend/dist is missing or empty"; exit 1; }; \
+    else \
+      echo "Building Astro from scratch against API at ${API_URL}"; \
+      npm run build; \
+    fi
 
 # Strip any unreferenced _astro/*.js — grep-verified unused in Phase 2 (zero
 # pages reference the Vue-runtime artifact). Keep CSS + fonts.

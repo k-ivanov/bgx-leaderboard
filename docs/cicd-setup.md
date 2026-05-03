@@ -138,11 +138,66 @@ stabilizes by removing the `|| true`.
 
 ---
 
-## CD — Railway GitHub integration (recommended)
+## CD — GHCR image, Railway pulls (recommended)
 
-This is the simplest path. Railway watches the repo's `main` branch
-and rebuilds the Dockerfile on every commit. No tokens in GitHub, no
-extra workflow.
+Railway's build environment can't reach a backend during the Docker
+build, so the Astro `getStaticPaths` API call fails with
+`getaddrinfo ENOTFOUND host.docker.internal`. To work around that, the
+image is built in GitHub Actions (where Postgres + uvicorn run as
+service containers, exactly like CI), and Railway only **runs** it.
+
+### How it works
+
+`.github/workflows/release.yml` runs on every push to `main`:
+
+1. Spins up Postgres 15 as a service.
+2. Installs the backend, runs `alembic upgrade head`, boots uvicorn
+   on `:5001`.
+3. Runs `npm ci` + `npm run build` against that backend, populating
+   `frontend/dist`.
+4. Builds the Docker image with `--build-arg PREBUILT_DIST=1`. Stage 1
+   of the Dockerfile skips `npm install` + `npm run build` and just
+   copies the pre-built `dist/`.
+5. Pushes to **`ghcr.io/<org>/<repo>:latest`** and `:sha-<short>`.
+
+Railway watches that registry tag and redeploys when a new image is
+pushed.
+
+### One-time setup
+
+1. **Make GHCR image readable.** First push creates the package as
+   private. Make it public so Railway doesn't need credentials:
+   `https://github.com/users/<you>/packages/container/<repo>/settings`
+   → **Change visibility → Public**. (Or keep it private and add a
+   Railway deploy token; see below.)
+
+2. **Create or open the Railway project.**
+
+   ```bash
+   npm i -g @railway/cli      # one-time on your laptop
+   railway login
+   cd ~/Work/bgx-navigation-dashboard
+   railway init               # creates a new project, OR
+   railway link               # links to an existing one
+   ```
+
+3. **Add the Postgres plugin.** From the Railway dashboard:
+   `New → Database → Add PostgreSQL`. Railway injects `DATABASE_URL`
+   into every service in the project.
+
+4. **Configure the service to deploy from the registry.** In the
+   Railway service's settings:
+   `Source → Image`. Enter `ghcr.io/<org>/<repo>:latest`.
+   - **Watch tag:** `latest` (Railway redeploys on tag updates).
+   - If the package is private: add `GHCR_USERNAME` (your GitHub
+     username) and `GHCR_PASSWORD` (a PAT with `read:packages`)
+     under `Source → Private registry credentials`.
+
+5. **Confirm the deploy settings.**
+   - **Healthcheck path:** `/health`
+   - **Healthcheck timeout:** 60 seconds (covers the alembic step)
+   - **Restart policy:** `ON_FAILURE`, max 10 retries (already in `railway.json`)
+   - **Pre-deploy command:** none (Dockerfile's `CMD` runs `alembic upgrade head` before the app)
 
 ### One-time setup
 
