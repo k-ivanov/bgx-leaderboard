@@ -97,7 +97,11 @@ def test_leaderboard_rider_slug_matches_backend_algorithm() -> None:
     response = client.get("/api/seasons/2025/standings/expert")
     body = response.json()
     for row in body["rows"]:
-        expected = rider_slug(row["rider"]["first_name"], row["rider"]["last_name"])
+        expected = rider_slug(
+            row["rider"]["first_name"],
+            row["rider"]["last_name"],
+            row["rider"]["race_number"],
+        )
         assert row["rider"]["slug"] == expected
 
 
@@ -188,7 +192,7 @@ def test_rider_disambig_404_for_unused_number() -> None:
 
 def test_rider_profile_resolves_by_slug() -> None:
     race_number, first, last = _first_rider_in_2025_expert()
-    slug = rider_slug(first, last)
+    slug = rider_slug(first, last, race_number)
     response = client.get(f"/api/seasons/2025/riders/{race_number}/{slug}")
     assert response.status_code == 200
     body = response.json()

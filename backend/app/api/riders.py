@@ -74,7 +74,7 @@ def get_rider_career(
     )
     matching = [
         r for r in candidates
-        if rider_slug(r.first_name, r.last_name) == needle
+        if rider_slug(r.first_name, r.last_name, r.race_number) == needle
     ]
     if not matching:
         raise HTTPException(
@@ -130,7 +130,7 @@ def get_rider_career(
 
     rep = matching[0]
     return RiderCareerOut(
-        slug=rider_slug(rep.first_name, rep.last_name),
+        slug=rider_slug(rep.first_name, rep.last_name, rep.race_number),
         first_name=rep.first_name,
         last_name=rep.last_name,
         seasons=rows,
@@ -178,9 +178,13 @@ def search_riders_global(
     rows = list(session.execute(base_q.where(and_(*per_token))).all())
 
     # Dedup by slug, keep the entry with the highest (most recent) year.
+    # Slug now includes race_number, so the same person who changed numbers
+    # between seasons appears as multiple rows here — that's intentional
+    # (we have no person_id to merge them, and the alternative would
+    # quietly hide one identity behind another).
     by_slug: dict[str, tuple[Rider, Category, Season]] = {}
     for rider, cat, season in rows:
-        slug = rider_slug(rider.first_name, rider.last_name)
+        slug = rider_slug(rider.first_name, rider.last_name, rider.race_number)
         existing = by_slug.get(slug)
         if existing is None or season.year > existing[2].year:
             by_slug[slug] = (rider, cat, season)
@@ -376,7 +380,7 @@ def get_rider(
 
     match: Optional[tuple[str, str]] = None
     for first, last in pairs:
-        if rider_slug(first, last) == slug.lower():
+        if rider_slug(first, last, race_number) == slug.lower():
             match = (first, last)
             break
 
@@ -439,7 +443,7 @@ def _build_rider_ref_from_profile(profile) -> "RiderRef":  # type: ignore[name-d
         race_number=profile.race_number,
         first_name=profile.first_name,
         last_name=profile.last_name,
-        slug=rider_slug(profile.first_name, profile.last_name),
+        slug=rider_slug(profile.first_name, profile.last_name, profile.race_number),
         team=profile.team,
         bike=profile.bike,
     )
