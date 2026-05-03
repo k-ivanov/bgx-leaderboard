@@ -49,7 +49,7 @@ def get_leaderboard(
                 ],
                 total_points=row.total_points,
                 races_participated=row.races_participated,
-                best_position=row.best_position,
+                best_position=None if row.imputed_only else row.best_position,
                 worst_event_slug=row.worst_event_slug,
                 worst_dropped=row.worst_dropped,
             )

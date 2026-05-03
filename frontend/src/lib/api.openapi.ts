@@ -647,7 +647,7 @@ export interface components {
             /** Races Participated */
             races_participated: number;
             /** Best Position */
-            best_position: number;
+            best_position?: number | null;
             /** Worst Event Slug */
             worst_event_slug?: string | null;
             /** Worst Dropped */

@@ -24,7 +24,11 @@ class StandingsRowOut(BaseModel):
     events: list[RiderEventEntryOut]
     total_points: float
     races_participated: int
-    best_position: int
+    # null when the rider has no real finishes anywhere — the underlying
+    # value would otherwise be `position_from_points(0) = 21`, which makes
+    # the table show "21" for someone who only DNF'd. Frontend renders
+    # null as "—".
+    best_position: Optional[int] = None
     worst_event_slug: Optional[str] = None
     worst_dropped: Optional[float] = None
 
