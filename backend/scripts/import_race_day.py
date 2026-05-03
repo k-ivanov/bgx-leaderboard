@@ -53,6 +53,14 @@ CLASS_MAP: dict[str, tuple[str, str]] = {
     "СТАНДАРТ":          ("standard",        "СТАНДАРТ"),
     "СТАНДАРТ ДЖУНИЪР":  ("standard_junior", "СТАНДАРТ-ДЖУНИЪР"),
     "СТАНДАРТ-ДЖУНИЪР":  ("standard_junior", "СТАНДАРТ-ДЖУНИЪР"),
+    # Pre-2025 historical categories. The 2020–2024 CSVs use a single
+    # "СЕНЬОРИ" class (no 40+/50+ split) and a single "ДЖУНИЪР" class
+    # (no "СТАНДАРТ-" prefix). Modeled as separate codes from the modern
+    # equivalents because the rider pools genuinely differed — merging
+    # them would fabricate cross-season parity that doesn't exist in the
+    # source data.
+    "ДЖУНИЪР":           ("junior",          "ДЖУНИЪР"),
+    "СЕНЬОРИ":           ("seniors",         "СЕНЬОРИ"),
     "ЖЕНИ":              ("women",           "ЖЕНИ"),
     "СЕНЬОРИ 40+":       ("seniors_40",      "СЕНЬОРИ 40+"),
     "СЕНЬОРИ 50+":       ("seniors_50",      "СЕНЬОРИ 50+"),
@@ -64,9 +72,11 @@ CATEGORY_SORT_ORDER: dict[str, int] = {
     "expert": 1,
     "standard": 2,
     "standard_junior": 3,
-    "women": 4,
-    "seniors_40": 5,
-    "seniors_50": 6,
+    "junior": 4,
+    "women": 5,
+    "seniors_40": 6,
+    "seniors_50": 7,
+    "seniors": 8,
 }
 
 
