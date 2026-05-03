@@ -84,9 +84,33 @@ case "$MODE" in
                 echo "[db-restore] PROD_DATABASE_URL is unset and 'railway' CLI is not installed." >&2
                 exit 1
             fi
-            URL="$(railway variables --service postgres --kv 2>/dev/null | awk -F= '/^DATABASE_URL=/{ sub(/^DATABASE_URL=/,""); print; exit }')"
+            # Try the Postgres service under common name casings. Prefer
+            # DATABASE_PUBLIC_URL — DATABASE_URL points to *.railway.internal
+            # which only resolves inside Railway's private network, not from
+            # this laptop.
+            vars=""
+            for svc in Postgres postgres postgres-db; do
+                if vars="$(railway variables --service "$svc" --kv 2>/dev/null)" && [[ -n "$vars" ]]; then
+                    break
+                fi
+                vars=""
+            done
+            if [[ -z "$vars" ]]; then
+                echo "[db-restore] couldn't read variables from any known Postgres service name (tried: Postgres, postgres, postgres-db)." >&2
+                echo "[db-restore] check 'railway status' / 'railway variables --service <name>' or pass PROD_DATABASE_URL=… directly." >&2
+                exit 1
+            fi
+            URL="$(printf '%s\n' "$vars" | awk -F= '/^DATABASE_PUBLIC_URL=/{ sub(/^DATABASE_PUBLIC_URL=/,""); print; exit }')"
             if [[ -z "$URL" ]]; then
-                echo "[db-restore] couldn't resolve prod DATABASE_URL. Pass PROD_DATABASE_URL=…" >&2
+                URL="$(printf '%s\n' "$vars" | awk -F= '/^DATABASE_URL=/{ sub(/^DATABASE_URL=/,""); print; exit }')"
+            fi
+            if [[ -z "$URL" ]]; then
+                echo "[db-restore] Postgres service has neither DATABASE_PUBLIC_URL nor DATABASE_URL. Pass PROD_DATABASE_URL=…" >&2
+                exit 1
+            fi
+            if [[ "$URL" == *.railway.internal* ]]; then
+                echo "[db-restore] only an internal *.railway.internal URL is exposed; that host won't resolve from your laptop." >&2
+                echo "[db-restore] enable a public proxy on the Postgres service (DATABASE_PUBLIC_URL) or pass PROD_DATABASE_URL=… directly." >&2
                 exit 1
             fi
         fi
@@ -117,14 +141,39 @@ else
     DECOMPRESS=(cat "$FILE")
 fi
 
+# --data-only assumes the target schema already exists (e.g. via Alembic) and
+# the dump only carries COPY blocks. Existing rows would collide on PKs, so we
+# pre-truncate the exact tables the dump targets. Table names come from the
+# dump itself (grep is restricted to `[a-zA-Z_]+`, so no injection surface).
+TABLES=""
+if $DATA_ONLY; then
+    TABLES="$("${DECOMPRESS[@]}" | grep -oE '^COPY public\.[a-zA-Z_]+' | awk '{print $2}' | paste -sd, -)"
+    if [[ -z "$TABLES" ]]; then
+        echo "[db-restore] --data-only: no 'COPY public.<table>' lines found in dump; nothing to truncate." >&2
+        exit 1
+    fi
+    echo "[db-restore] --data-only: will TRUNCATE ${TABLES} RESTART IDENTITY CASCADE before COPY"
+fi
+
 case "$MODE" in
     local)
         # -e: stop on first SQL error so a bad dump fails loudly.
+        if $DATA_ONLY; then
+            echo "[db-restore] truncating local tables…"
+            docker exec -i bgx-postgres psql -U bgx -d bgx -v ON_ERROR_STOP=1 \
+                -c "TRUNCATE TABLE ${TABLES} RESTART IDENTITY CASCADE;" >/tmp/db-restore-truncate.log
+        fi
         echo "[db-restore] streaming into local Postgres…"
         "${DECOMPRESS[@]}" | docker exec -i bgx-postgres psql -U bgx -d bgx -v ON_ERROR_STOP=1 >/tmp/db-restore-local.log
         ;;
     prod|url)
-        echo "[db-restore] streaming into $TARGET_DESC…"
+        if $DATA_ONLY; then
+            echo "[db-restore] truncating tables on ${TARGET_DESC}…"
+            docker run --rm -i postgres:16-alpine \
+                psql "$URL" -v ON_ERROR_STOP=1 \
+                -c "TRUNCATE TABLE ${TABLES} RESTART IDENTITY CASCADE;" >/tmp/db-restore-truncate.log
+        fi
+        echo "[db-restore] streaming into ${TARGET_DESC}…"
         "${DECOMPRESS[@]}" \
             | docker run --rm -i postgres:16-alpine \
                 psql "$URL" -v ON_ERROR_STOP=1 \
