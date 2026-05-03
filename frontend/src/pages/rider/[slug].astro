@@ -6,6 +6,7 @@ import BaseLayout from '~/layouts/BaseLayout.astro';
 import PositionBadge from '~/components/common/PositionBadge.astro';
 import PointsPill from '~/components/common/PointsPill.astro';
 import TimeCell from '~/components/common/TimeCell.astro';
+import CompareLauncher from '~/components/CompareLauncher.vue';
 import { copy } from '~/lib/copy';
 import { ordinal } from '~/lib/format';
 import { api } from '~/lib/api';
@@ -116,6 +117,9 @@ function fmtPoints(n: number | null | undefined): string {
           <h1 class="text-2xl md:text-[32px] font-extrabold tracking-[-0.02em]">
             {`${career.first_name} ${career.last_name}`}
           </h1>
+          <div class="ml-auto">
+            <CompareLauncher client:only="vue" currentSlug={career.slug} />
+          </div>
         </div>
         <p class="mt-2 text-[15px] text-fg-muted">
           {copy.riderProfile.metaFmt(latest.team, latest.bike, latest.category.display_name)}

@@ -1,0 +1,38 @@
+---
+// /compare — two-rider comparison driven by ?a={slug-a}&b={slug-b}.
+// The Astro shell is just a layout host; CompareView reads the URL,
+// fetches both careers, and renders everything client-side.
+//
+// Query params (not path params) because the cartesian product of
+// rider slugs is huge and we don't want to pre-build O(N²) HTML files.
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import CompareView from '~/components/CompareView.vue';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+
+let allYears: number[] = [];
+let defaultYear = new Date().getFullYear();
+try {
+  const out = await api.listSeasons();
+  const years = out.seasons.map(s => s.year).sort((a, b) => b - a);
+  allYears = years;
+  defaultYear = years[0] ?? defaultYear;
+} catch {
+  /* fall through to defaults */
+}
+
+const title = `${copy.compare.titleStem} · ${copy.seo.brand}`;
+const description = copy.compare.metaDescription;
+---
+<BaseLayout
+  title={title}
+  description={description}
+  year={defaultYear}
+  activeYear={defaultYear}
+  allYears={allYears}
+  currentNav="none"
+  trackPage="other"
+>
+  <CompareView client:only="vue" />
+</BaseLayout>
