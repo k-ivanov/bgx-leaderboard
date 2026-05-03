@@ -44,11 +44,6 @@ RUN if [ "$PREBUILT_DIST" = "1" ]; then \
       npm run build; \
     fi
 
-# Strip any unreferenced _astro/*.js — grep-verified unused in Phase 2 (zero
-# pages reference the Vue-runtime artifact). Keep CSS + fonts.
-RUN find dist/_astro -name "*.js" -print -delete 2>/dev/null || true
-
-
 ###############################################################################
 # Stage 2 — python runtime
 ###############################################################################
