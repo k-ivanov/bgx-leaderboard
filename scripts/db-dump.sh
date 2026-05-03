@@ -20,7 +20,7 @@
 #   db_dumps/<mode>[-<tag>]-<UTC-timestamp>.sql.gz
 #
 # Notes:
-#   - We use `docker run --rm postgres:16-alpine pg_dump …` for the URL mode
+#   - We use `docker run --rm postgres:18-alpine pg_dump …` for the URL mode
 #     so the host doesn't need a matching pg_dump installed.
 #   - For prod, prefer `PROD_DATABASE_URL=postgres://… ./scripts/db-dump.sh prod`.
 #     If unset, we fall through to `railway run -- pg_dump $DATABASE_URL`,
@@ -129,7 +129,7 @@ case "$MODE" in
         # Railway's default URL form working.
         URL="${URL/#postgres:\/\//postgresql://}"
         echo "[db-dump] dumping prod Postgres → $OUT"
-        docker run --rm postgres:16-alpine pg_dump \
+        docker run --rm postgres:18-alpine pg_dump \
             "${PG_DUMP_FLAGS[@]}" \
             "$URL" \
             | gzip -9 > "$OUT"
@@ -137,7 +137,7 @@ case "$MODE" in
     url)
         URL="${URL_ARG/#postgres:\/\//postgresql://}"
         echo "[db-dump] dumping $URL → $OUT"
-        docker run --rm postgres:16-alpine pg_dump \
+        docker run --rm postgres:18-alpine pg_dump \
             "${PG_DUMP_FLAGS[@]}" \
             "$URL" \
             | gzip -9 > "$OUT"

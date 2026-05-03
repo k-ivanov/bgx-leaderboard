@@ -68,7 +68,9 @@ if [[ ! -f "$FILE" ]]; then
 fi
 
 # Resolve target URL. For local, we go through the docker container so we
-# don't need a host psql; for prod/url we use a one-off postgres:16 image.
+# don't need a host psql; for prod/url we use a one-off postgres:18 image
+# (pinned to match Railway's server version — pg_dump refuses to talk to
+# a newer server).
 case "$MODE" in
     local)
         if ! docker ps --format '{{.Names}}' | grep -q '^bgx-postgres$'; then
@@ -169,13 +171,13 @@ case "$MODE" in
     prod|url)
         if $DATA_ONLY; then
             echo "[db-restore] truncating tables on ${TARGET_DESC}…"
-            docker run --rm -i postgres:16-alpine \
+            docker run --rm -i postgres:18-alpine \
                 psql "$URL" -v ON_ERROR_STOP=1 \
                 -c "TRUNCATE TABLE ${TABLES} RESTART IDENTITY CASCADE;" >/tmp/db-restore-truncate.log
         fi
         echo "[db-restore] streaming into ${TARGET_DESC}…"
         "${DECOMPRESS[@]}" \
-            | docker run --rm -i postgres:16-alpine \
+            | docker run --rm -i postgres:18-alpine \
                 psql "$URL" -v ON_ERROR_STOP=1 \
             >/tmp/db-restore-target.log
         ;;
