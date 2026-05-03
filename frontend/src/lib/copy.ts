@@ -12,7 +12,7 @@ export const copy = {
     brand: 'BGX Hard Enduro Championship',                   // kept as brand mark
     // brandSubtitle: 'Хард Ендуро',
     footer: (version: string) =>
-      `Шампионат БГХ Хард Ендуро · Неофициален · v${version}`,
+      `Шампионат БГХ Хард Ендуро · Неофициален · ${version}`,
   },
   nav: {
     leaderboard: 'Класиране',

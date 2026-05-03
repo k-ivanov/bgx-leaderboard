@@ -84,7 +84,10 @@ const ogImageUrl = ogImage.startsWith('http')
   ? ogImage
   : `${site}${ogImage.startsWith('/') ? ogImage : `/${ogImage}`}`;
 
-const appVersion = '0.2.0';
+// PUBLIC_APP_VERSION is injected by release.yml from the auto-incremented
+// git tag (e.g. v0.2.4). Falls back to 'dev' for `npm run dev` / local
+// builds with no tag context.
+const appVersion = import.meta.env.PUBLIC_APP_VERSION ?? 'dev';
 ---
 <!DOCTYPE html>
 <html lang="bg">

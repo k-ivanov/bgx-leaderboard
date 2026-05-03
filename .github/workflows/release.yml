@@ -28,7 +28,9 @@ jobs:
     name: Build + push image
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # contents: write so we can push the auto-bumped vX.Y.Z tag back to
+      # the repo. packages: write for GHCR.
+      contents: write
       packages: write
 
     services:
@@ -47,6 +49,29 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Need full history + all tags so `git describe --tags` finds the
+          # latest vX.Y.Z to bump from.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute next version tag
+        id: version
+        run: |
+          latest=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo 'v0.0.0')
+          next=$(printf '%s' "$latest" | sed 's/^v//' | awk -F. '{ printf "%d.%d.%d", $1, $2, $3 + 1 }')
+          echo "tag=v$next"            >> "$GITHUB_OUTPUT"
+          echo "version=v$next"        >> "$GITHUB_OUTPUT"
+          echo "Previous: $latest -> next: v$next"
+
+      - name: Tag commit and push tag
+        env:
+          NEW_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
+          git push origin "$NEW_TAG"
 
       - uses: actions/setup-python@v5
         with:
@@ -97,6 +122,9 @@ jobs:
         env:
           API_URL: http://127.0.0.1:5001
           SITE: https://bgx.example.com
+          # Astro/Vite expose PUBLIC_* to client code via import.meta.env;
+          # BaseLayout.astro reads this and renders it in the footer.
+          PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
         run: npm run build
 
       - name: Backend log on failure
