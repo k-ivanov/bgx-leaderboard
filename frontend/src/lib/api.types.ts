@@ -33,14 +33,7 @@ export type RiderProfileOut = S['RiderProfileOut'];
 
 export type RiderSearchResultOut = S['RiderSearchResultOut'];
 export type RiderSearchOut = S['RiderSearchOut'];
-
-// Cross-season search response. Not in the generated openapi schema yet
-// (regenerate via `npm run generate:api-types` after the next backend
-// build). Shape mirrors backend GlobalRiderSearchOut.
-export interface GlobalRiderSearchOut {
-  query: string;
-  results: RiderSearchResultOut[];
-}
+export type GlobalRiderSearchOut = S['GlobalRiderSearchOut'];
 
 export type RiderCareerSeasonOut = S['RiderCareerSeasonOut'];
 export type RiderCareerOut = S['RiderCareerOut'];

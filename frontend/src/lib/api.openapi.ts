@@ -227,6 +227,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/riders/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Riders Global
+         * @description Cross-season rider search.
+         *
+         *     Same tokenization rules as the per-season endpoint above (whitespace-
+         *     AND across tokens, each token ORs across first_name / last_name /
+         *     race_number). Results are deduped by computed slug — riders who
+         *     raced multiple seasons appear once with their most recent
+         *     (year, category). UI links to /rider/{slug}, which is multi-season
+         *     by design, so showing every (year, category) row would just be noise.
+         */
+        get: operations["search_riders_global_api_riders_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stats": {
         parameters: {
             query?: never;
@@ -348,6 +375,20 @@ export interface components {
             event: components["schemas"]["EventRef"];
             /** Rows */
             rows: components["schemas"]["EventResultRowOut"][];
+        };
+        /**
+         * GlobalRiderSearchOut
+         * @description Response for /api/riders/search (cross-season).
+         *
+         *     Each row carries its own season_year, so the caller can render a
+         *     year tag. Results are deduped by rider slug — a rider who raced in
+         *     multiple seasons appears once, with the most recent (year, category).
+         */
+        GlobalRiderSearchOut: {
+            /** Query */
+            query: string;
+            /** Results */
+            results: components["schemas"]["RiderSearchResultOut"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -996,6 +1037,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RiderCareerOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_riders_global_api_riders_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalRiderSearchOut"];
                 };
             };
             /** @description Validation Error */
