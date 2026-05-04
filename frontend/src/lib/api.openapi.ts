@@ -310,6 +310,20 @@ export interface components {
             /** Count */
             count: number;
         };
+        /**
+         * ComparisonCount
+         * @description One row in the top-comparisons aggregation. Slugs are normalized
+         *     alphabetically by the track endpoint so (A,B) and (B,A) bucket as
+         *     one pair.
+         */
+        ComparisonCount: {
+            /** Slug A */
+            slug_a: string;
+            /** Slug B */
+            slug_b: string;
+            /** Count */
+            count: number;
+        };
         /** DeviceCount */
         DeviceCount: {
             /** Device Type */
@@ -661,6 +675,10 @@ export interface components {
             total_visits: number;
             /** Unique Visitors Today */
             unique_visitors_today: number;
+            /** Unique Visitors 7D */
+            unique_visitors_7d: number;
+            /** Unique Visitors 30D */
+            unique_visitors_30d: number;
             /** Sessions Today */
             sessions_today: number;
             /** Avg Session Seconds */
@@ -673,6 +691,8 @@ export interface components {
             per_race: components["schemas"]["RaceVisitCount"][];
             /** Per Rider */
             per_rider: components["schemas"]["RiderVisitCount"][];
+            /** Top Comparisons */
+            top_comparisons: components["schemas"]["ComparisonCount"][];
             /** Recent */
             recent: components["schemas"]["RecentVisit"][];
         };
@@ -693,6 +713,8 @@ export interface components {
             event_slug?: string | null;
             /** Rider Slug */
             rider_slug?: string | null;
+            /** Compared With Slug */
+            compared_with_slug?: string | null;
         };
         /** TrackOut */
         TrackOut: {

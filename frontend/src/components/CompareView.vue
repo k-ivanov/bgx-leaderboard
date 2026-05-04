@@ -73,9 +73,30 @@ async function loadBoth() {
     }
     careerA.value = a;
     careerB.value = b;
+    trackComparison(slugA.value, slugB.value);
   } finally {
     loading.value = false;
   }
+}
+
+function trackComparison(a: string, b: string) {
+  // Fire-and-forget POST to /api/track. Backend normalizes (a,b) and
+  // (b,a) into a single ordered pair before persisting.
+  try {
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        page: 'compare',
+        category: null,
+        season_year: null,
+        event_slug: null,
+        rider_slug: a,
+        compared_with_slug: b,
+      }),
+      keepalive: true,
+    }).catch(() => { /* fire-and-forget */ });
+  } catch { /* never break the page for analytics */ }
 }
 
 function onPickA(r: RiderSearchResultOut) {

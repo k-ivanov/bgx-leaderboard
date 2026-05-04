@@ -256,6 +256,21 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
+    <section class="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="rounded-xl border border-border bg-bg-elevated p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-faint">
+          {{ copy.stats.statUnique7d }}
+        </div>
+        <div class="mt-1 text-2xl font-extrabold mono">{{ stats.unique_visitors_7d }}</div>
+      </div>
+      <div class="rounded-xl border border-border bg-bg-elevated p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-faint">
+          {{ copy.stats.statUnique30d }}
+        </div>
+        <div class="mt-1 text-2xl font-extrabold mono">{{ stats.unique_visitors_30d }}</div>
+      </div>
+    </section>
+
     <section class="mb-10">
       <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{{ copy.stats.sectionByCategory }}</h2>
       <p v-if="stats.per_category.length === 0" class="rounded-xl border border-border bg-bg-elevated p-4 text-[14px] text-fg-muted">
@@ -333,6 +348,35 @@ onBeforeUnmount(() => {
               </td>
               <td class="px-3 py-3 text-center mono">{{ r.season_year ?? '—' }}</td>
               <td class="px-3 py-3 text-right mono">{{ r.count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="mb-3 text-lg font-bold tracking-[-0.01em]">{{ copy.stats.sectionComparisons }}</h2>
+      <p v-if="stats.top_comparisons.length === 0" class="rounded-xl border border-border bg-bg-elevated p-4 text-[14px] text-fg-muted">
+        {{ copy.stats.emptyComparisons }}
+      </p>
+      <div v-else class="card overflow-hidden rounded-xl border border-border bg-bg-elevated">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-bg-muted">
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{{ copy.stats.colRiderA }}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{{ copy.stats.colRiderB }}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.stats.colVisits }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(c, i) in stats.top_comparisons" :key="`cmp-${i}`" class="border-b border-border-muted">
+              <td class="px-3 py-3">
+                <a class="hover:text-accent" :href="`/rider/${encodeURIComponent(c.slug_a)}`">{{ c.slug_a }}</a>
+              </td>
+              <td class="px-3 py-3">
+                <a class="hover:text-accent" :href="`/rider/${encodeURIComponent(c.slug_b)}`">{{ c.slug_b }}</a>
+              </td>
+              <td class="px-3 py-3 text-right mono">{{ c.count }}</td>
             </tr>
           </tbody>
         </table>

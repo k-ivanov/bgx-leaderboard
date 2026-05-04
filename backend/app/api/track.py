@@ -44,6 +44,19 @@ def track_visit(
     visitor_id = visitor_id_for(salt, ip, ua)
     session_id = derive_session_id(session, visitor_id)
 
+    # Normalize compare-page pairs alphabetically so (A,B) and (B,A)
+    # collapse into one stat row. Anything that's not a comparison
+    # passes through unchanged.
+    rider_slug = payload.rider_slug
+    compared_with_slug = payload.compared_with_slug
+    if (
+        payload.page == "compare"
+        and rider_slug is not None
+        and compared_with_slug is not None
+        and rider_slug > compared_with_slug
+    ):
+        rider_slug, compared_with_slug = compared_with_slug, rider_slug
+
     session.add(
         Visit(
             timestamp=datetime.now(timezone.utc),
@@ -51,7 +64,8 @@ def track_visit(
             category=payload.category,
             season_year=payload.season_year,
             event_slug=payload.event_slug,
-            rider_slug=payload.rider_slug,
+            rider_slug=rider_slug,
+            compared_with_slug=compared_with_slug,
             device_type=detect_device_type(ua),
             visitor_id=visitor_id,
             session_id=session_id,

@@ -17,6 +17,9 @@ class TrackIn(BaseModel):
     season_year: Optional[int] = Field(default=None, ge=1900, le=2999)
     event_slug: Optional[str] = Field(default=None, max_length=64)
     rider_slug: Optional[str] = Field(default=None, max_length=128)
+    # When page='compare' the second rider's slug. Server normalizes the
+    # pair alphabetically before persisting so (A,B) and (B,A) collapse.
+    compared_with_slug: Optional[str] = Field(default=None, max_length=128)
 
 
 class TrackOut(BaseModel):

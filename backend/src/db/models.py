@@ -180,6 +180,11 @@ class Visit(Base):
     session_id: Mapped[str] = mapped_column(String(36), nullable=False, default="", server_default="")
     event_slug: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     rider_slug: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    # For page='compare', the second rider's slug. Together with rider_slug
+    # this captures which pair was compared. Pairs are normalized
+    # alphabetically (slug_a < slug_b lexicographically) so "A vs B" and
+    # "B vs A" bucket into one stat. Null for every other page type.
+    compared_with_slug: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
 
     __table_args__ = (
         Index("ix_visit_timestamp", "timestamp"),

@@ -10,6 +10,7 @@ from app.auth import require_stats_auth
 from app.deps import get_session
 from app.schemas.stats import (
     CategoryVisitCount,
+    ComparisonCount,
     DeviceCount,
     RaceVisitCount,
     RecentVisit,
@@ -37,6 +38,8 @@ _TOP_N = 50
 def get_stats(session: Session = Depends(get_session)) -> StatsOut:
     now = datetime.now(timezone.utc)
     today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    week_cutoff = now - timedelta(days=7)
+    month_cutoff = now - timedelta(days=30)
     duration_cutoff = now - timedelta(days=_SESSION_DURATION_WINDOW_DAYS)
 
     total = session.execute(select(func.count(Visit.id))).scalar_one() or 0
@@ -44,6 +47,18 @@ def get_stats(session: Session = Depends(get_session)) -> StatsOut:
     unique_today = session.execute(
         select(func.count(func.distinct(Visit.visitor_id)))
         .where(Visit.timestamp >= today_start)
+        .where(Visit.visitor_id != "")
+    ).scalar_one() or 0
+
+    unique_7d = session.execute(
+        select(func.count(func.distinct(Visit.visitor_id)))
+        .where(Visit.timestamp >= week_cutoff)
+        .where(Visit.visitor_id != "")
+    ).scalar_one() or 0
+
+    unique_30d = session.execute(
+        select(func.count(func.distinct(Visit.visitor_id)))
+        .where(Visit.timestamp >= month_cutoff)
         .where(Visit.visitor_id != "")
     ).scalar_one() or 0
 
@@ -116,6 +131,23 @@ def get_stats(session: Session = Depends(get_session)) -> StatsOut:
         for (yr, slug, cnt) in per_rider_rows
     ]
 
+    # Top compared rider pairs. The track endpoint normalizes (A,B) and
+    # (B,A) into one ordered tuple before insert, so a plain group-by
+    # collapses into one row per real pair.
+    top_comparisons_rows = session.execute(
+        select(Visit.rider_slug, Visit.compared_with_slug, func.count(Visit.id))
+        .where(Visit.page == "compare")
+        .where(Visit.rider_slug.is_not(None))
+        .where(Visit.compared_with_slug.is_not(None))
+        .group_by(Visit.rider_slug, Visit.compared_with_slug)
+        .order_by(func.count(Visit.id).desc())
+        .limit(_TOP_N)
+    ).all()
+    top_comparisons = [
+        ComparisonCount(slug_a=a, slug_b=b, count=cnt)
+        for (a, b, cnt) in top_comparisons_rows
+    ]
+
     recent_rows = list(
         session.execute(
             select(Visit).order_by(Visit.timestamp.desc()).limit(25)
@@ -126,11 +158,14 @@ def get_stats(session: Session = Depends(get_session)) -> StatsOut:
     return StatsOut(
         total_visits=total,
         unique_visitors_today=unique_today,
+        unique_visitors_7d=unique_7d,
+        unique_visitors_30d=unique_30d,
         sessions_today=sessions_today,
         avg_session_seconds=float(avg_session_seconds),
         devices=devices,
         per_category=per_category,
         per_race=per_race,
         per_rider=per_rider,
+        top_comparisons=top_comparisons,
         recent=recent,
     )
