@@ -386,9 +386,24 @@ watch([slugA, slugB], () => {
           </table>
         </div>
 
-        <p v-if="h2hRows.length > 0" class="mt-3 text-sm text-fg-muted">
-          {{ copy.compare.summaryFmt(careerA.last_name, h2hSummary.a, careerB.last_name, h2hSummary.b, h2hSummary.tie) }}
-        </p>
+        <div v-if="h2hRows.length > 0" class="mt-6 flex justify-center">
+          <div class="inline-flex items-center gap-6 rounded-xl border-2 border-accent bg-accent-soft px-8 py-4 shadow-sm">
+            <div class="text-center">
+              <div class="text-3xl font-extrabold text-accent-strong mono leading-none">{{ h2hSummary.a }}</div>
+              <div class="mt-1 text-[11px] uppercase tracking-[0.06em] text-fg-muted">{{ careerA.last_name }}</div>
+            </div>
+            <div class="text-fg-faint text-2xl leading-none">·</div>
+            <div class="text-center">
+              <div class="text-3xl font-extrabold text-accent-strong mono leading-none">{{ h2hSummary.b }}</div>
+              <div class="mt-1 text-[11px] uppercase tracking-[0.06em] text-fg-muted">{{ careerB.last_name }}</div>
+            </div>
+            <div class="text-fg-faint text-2xl leading-none">·</div>
+            <div class="text-center">
+              <div class="text-3xl font-extrabold text-fg-muted mono leading-none">{{ h2hSummary.tie }}</div>
+              <div class="mt-1 text-[11px] uppercase tracking-[0.06em] text-fg-muted">{{ copy.compare.tieLabel }}</div>
+            </div>
+          </div>
+        </div>
       </template>
     </template>
   </section>

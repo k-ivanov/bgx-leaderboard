@@ -215,6 +215,7 @@ export const copy = {
     statCategories: 'Категории',
     headToHeadHeading: 'Лице в лице',
     headToHeadCount: (n: number) => `${n} общи състезания`,
+    tieLabel: 'Равно',
     noShared: 'Тези двама състезатели не са се срещали в едно състезание.',
     colRace: 'Състезание',
     colWinner: 'Победител',
