@@ -103,6 +103,12 @@ jobs:
           DATABASE_URL: postgresql+psycopg2://bgx:bgx@localhost:5432/bgx
         run: python -m scripts.seed_all
 
+      - name: Upsert race calendar (dates + locations + future races)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://bgx:bgx@localhost:5432/bgx
+        run: python -m scripts.upsert_calendar
+
       - name: Start backend
         working-directory: backend
         env:
