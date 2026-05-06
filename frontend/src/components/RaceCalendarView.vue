@@ -54,7 +54,7 @@ const RACE_LATLNG: Record<string, { lat: number; lng: number }> = {
   'varna':          { lat: 43.2141, lng: 27.9147 },
   'botevgrad':      { lat: 42.9000, lng: 23.7833 },
   'sevtopolis':     { lat: 42.6167, lng: 25.4000 },
-  'six_crazy_job':  { lat: 42.4258, lng: 25.6342 },
+  'six-crazy-job':  { lat: 42.8742, lng: 25.3169 },
   'vratsa':         { lat: 43.2050, lng: 23.5500 },
   'uran':           { lat: 42.7894, lng: 23.4558 },
 };
@@ -86,7 +86,7 @@ const RACE_PIN_COORDS: Record<string, { x: number; y: number }> = {
   'varna':          { x: 425, y: 175 },
   'botevgrad':      { x: 175, y: 165 },
   'sevtopolis':     { x: 285, y: 215 },
-  'six_crazy_job':  { x: 320, y: 240 },
+  'six-crazy-job':  { x: 295, y: 200 },
   'vratsa':         { x: 145, y: 140 },
   'uran':           { x: 110, y: 170 },
 };
