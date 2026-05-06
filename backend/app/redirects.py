@@ -11,8 +11,8 @@ Mapping (frontend-restructure.md §T2):
 | /{year}                                      | /results?season={year}                        |
 | /{year}/{category}                           | /results?season={year}&category={category}    |
 | /{year}/{category}/{slug}                    | /results?season={year}&category={category}&race={slug} |
-| /{year}/events                               | /results?season={year}                        |
-| /{year}/events/{slug}                        | /results?season={year}&race={slug}            |
+| /{year}/events                               | /races?season={year}                          |
+| /{year}/events/{slug}                        | /races/{slug}                                 |
 | /{year}/r/{race_number}/{slug}               | /rider/{slug}                                 |
 | /{year}/r/{race_number}                      | 404 (disambig page is removed)                |
 
@@ -39,14 +39,17 @@ def legacy_event_detail(
     year: int = Path(..., ge=1900, le=2100),
     slug: str = Path(..., min_length=1, max_length=128),
 ) -> RedirectResponse:
-    return _redirect(f"/results?season={year}&race={quote(slug, safe='')}")
+    # /races/{slug} defaults to the most recent year for that slug. The
+    # year context from the legacy URL is dropped because the new race
+    # page surfaces it explicitly.
+    return _redirect(f"/races/{quote(slug, safe='')}")
 
 
 @router.get("/{year:int}/events")
 def legacy_events_list(
     year: int = Path(..., ge=1900, le=2100),
 ) -> RedirectResponse:
-    return _redirect(f"/results?season={year}")
+    return _redirect(f"/races?season={year}")
 
 
 @router.get("/{year:int}/r/{race_number:int}/{slug}")

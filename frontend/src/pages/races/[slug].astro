@@ -1,0 +1,154 @@
+---
+// /races/{slug} — per-race detail page.
+//
+// Slugs are reused across seasons (e.g. buhovo 2025 + buhovo 2026 share
+// the slug "buhovo"). The page accepts an optional ?season=YYYY query
+// param to disambiguate; without it, defaults to the most recent season
+// where this slug appears. SSG: one HTML per distinct slug across all
+// seasons.
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+import type { EventRef } from '~/lib/api.types';
+
+interface SlugContext {
+  bySeason: Map<number, EventRef>;  // year → event in that year
+  defaultYear: number;
+}
+
+export async function getStaticPaths() {
+  const seasons = await api.listSeasons();
+  const allYears = seasons.seasons.map(s => s.year).sort((a, b) => b - a);
+  const bySlug = new Map<string, SlugContext>();
+
+  for (const s of seasons.seasons) {
+    let detail;
+    try { detail = await api.listRaces(s.year); }
+    catch { continue; }
+    for (const ev of detail.events) {
+      const ctx = bySlug.get(ev.slug);
+      if (!ctx) {
+        bySlug.set(ev.slug, {
+          bySeason: new Map([[s.year, ev]]),
+          defaultYear: s.year,
+        });
+      } else {
+        ctx.bySeason.set(s.year, ev);
+        // Most recent year wins as default.
+        if (s.year > ctx.defaultYear) ctx.defaultYear = s.year;
+      }
+    }
+  }
+
+  return [...bySlug.entries()].map(([slug, ctx]) => ({
+    params: { slug },
+    props: {
+      bySeason: [...ctx.bySeason.entries()],  // serializable
+      defaultYear: ctx.defaultYear,
+      allYears,
+    },
+  }));
+}
+
+const { slug } = Astro.params;
+const slugStr = slug!;
+const { bySeason, defaultYear, allYears } = Astro.props as {
+  bySeason: [number, EventRef][];
+  defaultYear: number;
+  allYears: number[];
+};
+
+const eventsByYear = new Map<number, EventRef>(bySeason);
+const ev = eventsByYear.get(defaultYear)!;
+
+const months = ['Януари', 'Февруари', 'Март', 'Април', 'Май', 'Юни', 'Юли', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'];
+function fmtDateLong(iso: string | null | undefined): string {
+  if (!iso) return copy.racesPage.statusTbd;
+  const d = new Date(iso);
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// Status pill: past / next / future / tbd
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+let status: 'past' | 'future' | 'tbd' = 'tbd';
+if (ev.event_date) {
+  const d = new Date(ev.event_date);
+  d.setHours(0, 0, 0, 0);
+  status = d.getTime() < today.getTime() ? 'past' : 'future';
+}
+
+const title = `${ev.name} · ${copy.seo.brand}`;
+const description = ev.description ?? copy.racesPage.metaDescription;
+---
+<BaseLayout
+  title={title}
+  description={description}
+  year={defaultYear}
+  activeYear={defaultYear}
+  allYears={allYears}
+  currentNav="none"
+  trackPage="race"
+  trackEventSlug={slugStr}
+>
+  <section class="mx-auto max-w-3xl px-4 py-8 md:py-12">
+    <a href={`/races?season=${defaultYear}`} class="text-sm text-fg-muted hover:text-accent uppercase tracking-[0.06em]">
+      {copy.racesPage.backToCalendar}
+    </a>
+
+    <article class="mt-4 rounded-2xl border-2 border-accent bg-bg-elevated p-6 md:p-8" style="box-shadow: 0 0 0 4px var(--color-accent-soft)">
+      <h1 class="font-display text-3xl md:text-[40px] font-extrabold uppercase tracking-[-0.02em] leading-[1.05]">
+        {ev.name}
+      </h1>
+
+      <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-fg-muted">
+        <span><b class="text-fg font-semibold">{copy.racesPage.dateLabel}</b> {fmtDateLong(ev.event_date)}</span>
+        {ev.location && (
+          <span><b class="text-fg font-semibold">{copy.racesPage.locationLabel}</b> {ev.location}</span>
+        )}
+        <span><b class="text-fg font-semibold">{copy.racesPage.seasonLabel}</b> {defaultYear}</span>
+        {status === 'past' && (
+          <span class="text-fg-faint">{copy.racesPage.statusCompleted}</span>
+        )}
+      </div>
+
+      <p class="mt-5 text-fg-muted leading-relaxed">
+        {ev.description || copy.racesPage.descriptionFallback}
+      </p>
+
+      {ev.facebook_event_url && (
+        <a
+          href={ev.facebook_event_url}
+          target="_blank" rel="noopener"
+          class="mt-6 flex items-center justify-center gap-2 rounded-lg bg-accent px-5 py-3.5 text-white font-bold uppercase tracking-[0.04em] hover:bg-accent-strong transition-colors"
+        >
+          📘 {copy.racesPage.fbEventCta}
+        </a>
+      )}
+      <a
+        href={`/results?season=${defaultYear}&race=${encodeURIComponent(slugStr)}`}
+        class="mt-3 flex items-center justify-center rounded-lg border border-border px-5 py-3 font-semibold hover:border-accent transition-colors"
+      >
+        {copy.racesPage.leaderboardCta} →
+      </a>
+    </article>
+
+    {bySeason.length > 1 && (
+      <section class="mt-10">
+        <h2 class="text-sm font-bold uppercase tracking-[0.08em] text-fg-faint mb-3">Това състезание през годините</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {[...bySeason].sort((a, b) => b[0] - a[0]).map(([year, evRef]) => (
+            <a
+              href={`/results?season=${year}&race=${encodeURIComponent(evRef.slug)}`}
+              class="rounded-lg border border-border bg-bg-elevated px-4 py-3 text-center hover:border-accent transition-colors"
+            >
+              <span class="block font-mono text-lg font-bold">{year}</span>
+              <span class="block text-xs text-fg-muted mt-1">{fmtDateLong(evRef.event_date)}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+  </section>
+</BaseLayout>

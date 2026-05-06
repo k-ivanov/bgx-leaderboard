@@ -1,0 +1,43 @@
+---
+// /races — calendar view (variant C from the 2026-05-06 design-shotgun).
+// Shell only. RaceCalendarView reads ?season= from the URL and fetches
+// the data, so we don't pre-fetch events here. listSeasons at build
+// time is enough to pre-fill the year switcher.
+
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import RaceCalendarView from '~/components/RaceCalendarView.vue';
+import { copy } from '~/lib/copy';
+import { api } from '~/lib/api';
+
+let allYears: number[] = [];
+let defaultYear = new Date().getFullYear();
+try {
+  const out = await api.listSeasons();
+  const years = out.seasons.map(s => s.year).sort((a, b) => b - a);
+  allYears = years;
+  // Prefer the current calendar year if it's in the dataset; else newest.
+  const currentCal = new Date().getFullYear();
+  defaultYear = years.includes(currentCal) ? currentCal : (years[0] ?? currentCal);
+} catch {
+  /* fall through to defaults */
+}
+
+const title = `${copy.racesPage.titleStem} · ${copy.seo.brand}`;
+const description = copy.racesPage.metaDescription;
+---
+<BaseLayout
+  title={title}
+  description={description}
+  year={defaultYear}
+  activeYear={defaultYear}
+  allYears={allYears}
+  currentNav="none"
+  trackPage="races_list"
+  skipTracking
+>
+  <RaceCalendarView
+    client:only="vue"
+    defaultYear={defaultYear}
+    allYears={allYears}
+  />
+</BaseLayout>

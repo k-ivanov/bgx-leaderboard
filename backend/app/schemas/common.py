@@ -58,6 +58,10 @@ class EventRef(BaseModel):
     location: Optional[str] = None
     sort_order: int
     event_type: Optional[str] = None
+    # Editorial fields, populated via /admin. Null when not yet set.
+    # Hidden from the UI (button hides, fallback copy used) when null.
+    facebook_event_url: Optional[str] = None
+    description: Optional[str] = None
 
 
 class SeasonRef(BaseModel):

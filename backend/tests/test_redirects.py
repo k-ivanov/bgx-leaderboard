@@ -34,16 +34,17 @@ def test_race_results_redirects() -> None:
     assert r.headers["location"] == "/results?season=2025&category=expert&race=buhovo"
 
 
-def test_events_list_redirects() -> None:
+def test_events_list_redirects_to_races_calendar() -> None:
     r = _get_no_redirect("/2025/events")
     assert r.status_code == 301
-    assert r.headers["location"] == "/results?season=2025"
+    assert r.headers["location"] == "/races?season=2025"
 
 
-def test_event_detail_redirects() -> None:
+def test_event_detail_redirects_to_races_slug() -> None:
     r = _get_no_redirect("/2025/events/buhovo")
     assert r.status_code == 301
-    assert r.headers["location"] == "/results?season=2025&race=buhovo"
+    # Year is dropped — /races/{slug} defaults to most recent for the slug.
+    assert r.headers["location"] == "/races/buhovo"
 
 
 def test_rider_profile_redirects_drops_year_and_number() -> None:
