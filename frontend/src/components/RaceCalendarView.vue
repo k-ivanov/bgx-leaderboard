@@ -40,8 +40,8 @@ const selectedYear = ref<number>(props.defaultYear);
 // Maps view when the API key is configured. Decimal degrees, WGS84.
 const RACE_LATLNG: Record<string, { lat: number; lng: number }> = {
   'buhovo':         { lat: 42.7833, lng: 23.5333 },
-  'kyrnare':        { lat: 42.8242, lng: 24.7728 },
-  'karnare':        { lat: 42.8242, lng: 24.7728 },
+  'kyrnare':        { lat: 42.7012, lng: 24.6319 },
+  'karnare':        { lat: 42.7012, lng: 24.6319 },
   'alba-damascena': { lat: 42.6167, lng: 25.4000 },
   'kornica':        { lat: 41.6042, lng: 23.7872 },
   'kornitsa':       { lat: 41.6042, lng: 23.7872 },
@@ -72,8 +72,8 @@ function resolveLatLng(slug: string): { lat: number; lng: number } | null {
 // normalized to lowercase + underscores → hyphens before lookup.
 const RACE_PIN_COORDS: Record<string, { x: number; y: number }> = {
   'buhovo':         { x: 120, y: 170 },
-  'kyrnare':        { x: 240, y: 190 },
-  'karnare':        { x: 240, y: 190 },
+  'kyrnare':        { x: 228, y: 202 },
+  'karnare':        { x: 228, y: 202 },
   'alba-damascena': { x: 290, y: 210 },
   'kornica':        { x: 155, y: 265 },
   'kornitsa':       { x: 155, y: 265 },
