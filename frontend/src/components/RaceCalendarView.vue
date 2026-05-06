@@ -8,7 +8,7 @@
 // projection — see RACE_PIN_COORDS below). Slugs we don't recognize
 // get a centered fallback pin so the page never breaks for new races.
 
-import { computed, onMounted, ref, watch, nextTick } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue';
 import type { EventListOut, EventRef, SeasonRef } from '~/lib/api.types';
 import { copy } from '~/lib/copy';
 
@@ -210,6 +210,13 @@ onMounted(() => {
   void loadSeason(selectedYear.value);
 });
 
+onBeforeUnmount(() => {
+  if (themeObserver) {
+    themeObserver.disconnect();
+    themeObserver = null;
+  }
+});
+
 function changeYear(e: Event) {
   const year = Number((e.target as HTMLSelectElement).value);
   selectedYear.value = year;
@@ -227,6 +234,39 @@ const googleMapsContainer = ref<HTMLElement | null>(null);
 const googleMapsFailed = ref(false);
 let gmap: any = null;
 let gmarkers: any[] = [];
+let bulgariaPolygon: any = null;
+let themeObserver: MutationObserver | null = null;
+
+// Hand-crafted simplified Bulgaria outline (~25 points, counter-clockwise
+// from NW). Drawn as a single Polygon overlay with the brand accent color
+// so the host country reads at a glance no matter how zoomed out the
+// user is. Coordinates are approximate — recognizable, not survey-grade.
+const BULGARIA_OUTLINE: Array<{ lat: number; lng: number }> = [
+  { lat: 44.21, lng: 22.71 },
+  { lat: 43.62, lng: 22.69 },
+  { lat: 43.18, lng: 22.52 },
+  { lat: 42.79, lng: 22.36 },
+  { lat: 42.28, lng: 22.69 },
+  { lat: 41.74, lng: 22.95 },
+  { lat: 41.40, lng: 23.04 },
+  { lat: 41.41, lng: 23.81 },
+  { lat: 41.34, lng: 24.71 },
+  { lat: 41.20, lng: 25.55 },
+  { lat: 41.30, lng: 26.15 },
+  { lat: 41.74, lng: 26.36 },
+  { lat: 42.10, lng: 27.35 },
+  { lat: 42.50, lng: 27.47 },
+  { lat: 43.21, lng: 27.93 },
+  { lat: 43.74, lng: 28.58 },
+  { lat: 44.12, lng: 27.27 },
+  { lat: 44.05, lng: 26.62 },
+  { lat: 43.85, lng: 25.97 },
+  { lat: 43.71, lng: 24.90 },
+  { lat: 43.62, lng: 25.35 },
+  { lat: 43.99, lng: 24.06 },
+  { lat: 43.81, lng: 23.24 },
+  { lat: 44.10, lng: 22.85 },
+];
 
 function loadGoogleMapsScript(): Promise<void> {
   // Idempotent — multiple .vue islands could mount at once; only inject once.
@@ -249,9 +289,9 @@ function loadGoogleMapsScript(): Promise<void> {
   });
 }
 
-// Dark-mode style array for the legacy Map. New cloud-based styling needs
-// a Map ID which we don't have; keeping this inline lets the map land
-// dark-themed out of the box.
+// Style arrays for the legacy Map. New cloud-based styling would need
+// a Map ID which we don't have; keeping these inline lets us swap on
+// theme toggle without provisioning anything in Cloud Console.
 const GMAP_DARK_STYLES = [
   { elementType: 'geometry', stylers: [{ color: '#0a0a0a' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0a0a' }] },
@@ -266,8 +306,37 @@ const GMAP_DARK_STYLES = [
   { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0f0f0f' }] },
 ];
 
+const GMAP_LIGHT_STYLES = [
+  { elementType: 'geometry', stylers: [{ color: '#fafafa' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#737373' }] },
+  { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#d4d4d4' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#525252' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
+  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
+];
+
+function isDarkMode(): boolean {
+  return typeof document !== 'undefined'
+    && document.documentElement.classList.contains('dark');
+}
+
+function currentMapStyles() {
+  return isDarkMode() ? GMAP_DARK_STYLES : GMAP_LIGHT_STYLES;
+}
+
+function currentAccentColor(): string {
+  if (typeof window === 'undefined') return '#e65100';
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim();
+  return v || '#e65100';
+}
+
 function pinIcon(status: 'past' | 'next' | 'future' | 'tbd', selected: boolean) {
-  const ACCENT = '#e65100';
+  const ACCENT = currentAccentColor();
   const isFilled = status === 'past' || status === 'next';
   // SVG circle marker. Selection adds a ring; "next" gets a halo.
   const fill = isFilled ? ACCENT : '#0a0a0a';
@@ -295,16 +364,39 @@ async function renderGoogleMap() {
   try {
     await loadGoogleMapsScript();
     const g = (window as any).google;
+    const dark = isDarkMode();
+    const accent = currentAccentColor();
     if (!gmap) {
       gmap = new g.maps.Map(googleMapsContainer.value, {
         center: { lat: 42.7, lng: 25.5 },
         zoom: 7,
-        styles: GMAP_DARK_STYLES,
+        styles: dark ? GMAP_DARK_STYLES : GMAP_LIGHT_STYLES,
         disableDefaultUI: true,
         zoomControl: true,
         gestureHandling: 'cooperative',
-        backgroundColor: '#0a0a0a',
+        backgroundColor: dark ? '#0a0a0a' : '#fafafa',
       });
+      // Bulgaria outline drawn once with the current accent.
+      bulgariaPolygon = new g.maps.Polygon({
+        paths: BULGARIA_OUTLINE,
+        strokeColor: accent,
+        strokeOpacity: 0.65,
+        strokeWeight: 2,
+        fillColor: accent,
+        fillOpacity: 0.05,
+        clickable: false,
+        zIndex: 0,
+        map: gmap,
+      });
+      // Watch the host <html> class attribute so theme toggles re-style
+      // the map without a page reload. Disconnected on unmount.
+      if (typeof MutationObserver !== 'undefined' && !themeObserver) {
+        themeObserver = new MutationObserver(() => applyMapTheme());
+        themeObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class'],
+        });
+      }
     }
     // Replace markers each render — race data + status can change with year.
     gmarkers.forEach(m => m.setMap(null));
@@ -324,6 +416,26 @@ async function renderGoogleMap() {
     }
   } catch (e) {
     googleMapsFailed.value = true;
+  }
+}
+
+function applyMapTheme() {
+  if (!gmap) return;
+  const dark = isDarkMode();
+  const accent = currentAccentColor();
+  gmap.setOptions({
+    styles: dark ? GMAP_DARK_STYLES : GMAP_LIGHT_STYLES,
+    backgroundColor: dark ? '#0a0a0a' : '#fafafa',
+  });
+  if (bulgariaPolygon) {
+    bulgariaPolygon.setOptions({ strokeColor: accent, fillColor: accent });
+  }
+  // Re-skin every marker so the SVG icon picks up the new accent.
+  for (const m of gmarkers) {
+    const slug = (m as any).getTitle?.();
+    const r = races.value.find(x => x.ev.name === slug);
+    if (!r) continue;
+    m.setIcon(pinIcon(r.status, selectedSlug.value === r.ev.slug));
   }
 }
 
