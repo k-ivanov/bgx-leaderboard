@@ -86,6 +86,11 @@ class Event(Base):
     location: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     event_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # Edited via /admin (SQLAdmin) — never set by the seed importer because
+    # the source CSVs don't carry these fields. Populated post-seed by a
+    # human as event marketing settles. UI hides the FB button when null.
+    facebook_event_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     season: Mapped[Season] = relationship(back_populates="events")
     results: Mapped[list["EventResult"]] = relationship(back_populates="event", cascade="all, delete-orphan")

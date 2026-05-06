@@ -120,9 +120,14 @@ class EventAdmin(ModelView, model=Event):
         Event.event_date,
         Event.location,
         Event.sort_order,
+        # Editorial — visible in the index so the operator can see at a
+        # glance which races still need their FB URL filled in.
+        Event.facebook_event_url,
     ]
     column_sortable_list = [Event.event_date, Event.sort_order]
     column_searchable_list = [Event.name, Event.slug, Event.location]
+    # description is editable on the form; omitted from column_list because
+    # it's prose. results are excluded entirely (managed via the importer).
     form_excluded_columns = [Event.results]
 
 

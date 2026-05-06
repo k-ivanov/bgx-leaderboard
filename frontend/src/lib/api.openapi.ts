@@ -361,6 +361,10 @@ export interface components {
             sort_order: number;
             /** Event Type */
             event_type?: string | null;
+            /** Facebook Event Url */
+            facebook_event_url?: string | null;
+            /** Description */
+            description?: string | null;
         };
         /** EventResultRowOut */
         EventResultRowOut: {
