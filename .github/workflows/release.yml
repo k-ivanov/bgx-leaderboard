@@ -125,6 +125,11 @@ jobs:
           # Astro/Vite expose PUBLIC_* to client code via import.meta.env;
           # BaseLayout.astro reads this and renders it in the footer.
           PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
+          # Google Maps key for the /races map. Comes from a GH secret;
+          # baked into the static HTML at build time. When unset (e.g.
+          # local dev without a key), the page falls back to the SVG
+          # silhouette automatically.
+          PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: npm run build
 
       - name: Backend log on failure

@@ -8,9 +8,14 @@
 // projection — see RACE_PIN_COORDS below). Slugs we don't recognize
 // get a centered fallback pin so the page never breaks for new races.
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch, nextTick } from 'vue';
 import type { EventListOut, EventRef, SeasonRef } from '~/lib/api.types';
 import { copy } from '~/lib/copy';
+
+// Build-time env var (Astro/Vite convention). When set, the page renders a
+// real Google Map; when unset, falls back to the stylized SVG silhouette.
+const GOOGLE_MAPS_API_KEY = (import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY ?? '').trim();
+const USE_GOOGLE_MAPS = GOOGLE_MAPS_API_KEY.length > 0;
 
 const props = defineProps<{
   defaultYear: number;
@@ -30,6 +35,36 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const selectedSlug = ref<string | null>(null);
 const selectedYear = ref<number>(props.defaultYear);
+
+// Real-world coordinates for each race location. Used by the Google
+// Maps view when the API key is configured. Decimal degrees, WGS84.
+const RACE_LATLNG: Record<string, { lat: number; lng: number }> = {
+  'buhovo':         { lat: 42.7833, lng: 23.5333 },
+  'kyrnare':        { lat: 42.8242, lng: 24.7728 },
+  'karnare':        { lat: 42.8242, lng: 24.7728 },
+  'alba-damascena': { lat: 42.6167, lng: 25.4000 },
+  'kornica':        { lat: 41.6042, lng: 23.7872 },
+  'kornitsa':       { lat: 41.6042, lng: 23.7872 },
+  'stara-zagora':   { lat: 42.4258, lng: 25.6342 },
+  'kirkovo':        { lat: 41.3333, lng: 25.4167 },
+  'hard_enduro-kirkovo': { lat: 41.3333, lng: 25.4167 },
+  'bansko':         { lat: 41.8344, lng: 23.4856 },
+  'gorna-malina':   { lat: 42.6667, lng: 23.7000 },
+  'sopot':          { lat: 42.6533, lng: 24.7589 },
+  'varna':          { lat: 43.2141, lng: 27.9147 },
+  'botevgrad':      { lat: 42.9000, lng: 23.7833 },
+  'sevtopolis':     { lat: 42.6167, lng: 25.4000 },
+  'six_crazy_job':  { lat: 42.4258, lng: 25.6342 },
+};
+
+function resolveLatLng(slug: string): { lat: number; lng: number } | null {
+  const norm = slug.toLowerCase().replace(/_/g, '-');
+  if (RACE_LATLNG[norm]) return RACE_LATLNG[norm];
+  for (const [key, ll] of Object.entries(RACE_LATLNG)) {
+    if (norm.endsWith(key) || norm.includes(key)) return ll;
+  }
+  return null;  // unknown slug → no pin on the Google map
+}
 
 // Approximate Bulgarian geography. SVG viewBox is 500x380. Slugs are
 // normalized to lowercase + underscores → hyphens before lookup.
@@ -183,6 +218,120 @@ function changeYear(e: Event) {
   window.history.pushState({}, '', u.toString());
   void loadSeason(year);
 }
+
+// ---------------------------------------------------------------------------
+// Google Maps integration (loaded only when PUBLIC_GOOGLE_MAPS_API_KEY is set)
+// ---------------------------------------------------------------------------
+
+const googleMapsContainer = ref<HTMLElement | null>(null);
+const googleMapsFailed = ref(false);
+let gmap: any = null;
+let gmarkers: any[] = [];
+
+function loadGoogleMapsScript(): Promise<void> {
+  // Idempotent — multiple .vue islands could mount at once; only inject once.
+  return new Promise((resolve, reject) => {
+    if ((window as any).google?.maps) return resolve();
+    const existing = document.querySelector('script[data-bgx-gmaps]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('script load')), { once: true });
+      return;
+    }
+    const s = document.createElement('script');
+    s.async = true;
+    s.defer = true;
+    s.dataset.bgxGmaps = '1';
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&v=weekly&loading=async`;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('script load'));
+    document.head.appendChild(s);
+  });
+}
+
+// Dark-mode style array for the legacy Map. New cloud-based styling needs
+// a Map ID which we don't have; keeping this inline lets the map land
+// dark-themed out of the box.
+const GMAP_DARK_STYLES = [
+  { elementType: 'geometry', stylers: [{ color: '#0a0a0a' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0a0a' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#737373' }] },
+  { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#262626' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#a3a3a3' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
+  { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#141414' }] },
+  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0f0f0f' }] },
+];
+
+function pinIcon(status: 'past' | 'next' | 'future' | 'tbd', selected: boolean) {
+  const ACCENT = '#e65100';
+  const isFilled = status === 'past' || status === 'next';
+  // SVG circle marker. Selection adds a ring; "next" gets a halo.
+  const fill = isFilled ? ACCENT : '#0a0a0a';
+  const stroke = ACCENT;
+  const strokeWidth = isFilled ? 1.5 : 2.5;
+  const opacity = status === 'past' ? 0.6 : 1;
+  const ring = selected ? `<circle cx="16" cy="16" r="14" fill="none" stroke="${ACCENT}" stroke-width="2" opacity="0.7"/>` : '';
+  const halo = status === 'next' ? `<circle cx="16" cy="16" r="13" fill="${ACCENT}" opacity="0.25"/>` : '';
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+      ${halo}${ring}
+      <circle cx="16" cy="16" r="${status === 'next' ? 9 : 8}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity}"/>
+    </svg>
+  `;
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new (window as any).google.maps.Size(32, 32),
+    anchor: new (window as any).google.maps.Point(16, 16),
+  };
+}
+
+async function renderGoogleMap() {
+  if (!USE_GOOGLE_MAPS) return;
+  if (!googleMapsContainer.value || races.value.length === 0) return;
+  try {
+    await loadGoogleMapsScript();
+    const g = (window as any).google;
+    if (!gmap) {
+      gmap = new g.maps.Map(googleMapsContainer.value, {
+        center: { lat: 42.7, lng: 25.5 },
+        zoom: 7,
+        styles: GMAP_DARK_STYLES,
+        disableDefaultUI: true,
+        zoomControl: true,
+        gestureHandling: 'cooperative',
+        backgroundColor: '#0a0a0a',
+      });
+    }
+    // Replace markers each render — race data + status can change with year.
+    gmarkers.forEach(m => m.setMap(null));
+    gmarkers = [];
+    for (const r of races.value) {
+      const ll = resolveLatLng(r.ev.slug);
+      if (!ll) continue;
+      const marker = new g.maps.Marker({
+        position: ll,
+        map: gmap,
+        title: r.ev.name,
+        icon: pinIcon(r.status, selectedSlug.value === r.ev.slug),
+        zIndex: r.status === 'next' ? 1000 : (selectedSlug.value === r.ev.slug ? 800 : 100),
+      });
+      marker.addListener('click', () => pickRace(r.ev.slug));
+      gmarkers.push(marker);
+    }
+  } catch (e) {
+    googleMapsFailed.value = true;
+  }
+}
+
+watch([races, selectedSlug, googleMapsContainer], () => {
+  if (USE_GOOGLE_MAPS && !googleMapsFailed.value) {
+    void nextTick(renderGoogleMap);
+  }
+});
 </script>
 
 <template>
@@ -211,7 +360,15 @@ function changeYear(e: Event) {
 
     <div v-else class="grid grid-cols-1 lg:grid-cols-[55fr_45fr] gap-7">
       <!-- Map -->
-      <div class="relative h-[600px] rounded-2xl border border-border bg-bg-elevated p-7 overflow-hidden">
+      <div class="relative h-[600px] rounded-2xl border border-border bg-bg-elevated overflow-hidden">
+        <!-- Google Maps when key is configured and load succeeded -->
+        <div
+          v-if="USE_GOOGLE_MAPS && !googleMapsFailed"
+          ref="googleMapsContainer"
+          class="absolute inset-0"
+        ></div>
+        <!-- Fallback: stylized SVG silhouette (always present in DOM if no key, OR if Google failed) -->
+        <div v-else class="relative w-full h-full p-7">
         <div class="absolute top-4 right-4 text-[11px] tracking-[0.1em] text-fg-faint flex items-center gap-1.5">↑ N</div>
         <svg viewBox="0 0 500 380" class="w-full h-full">
           <!-- Stylized Bulgaria silhouette -->
@@ -272,8 +429,10 @@ function changeYear(e: Event) {
             </text>
           </g>
         </svg>
-        <!-- Legend -->
-        <div class="absolute bottom-4 left-4 flex gap-3 text-[11px] uppercase tracking-[0.06em] text-fg-muted">
+        </div>
+        <!-- Legend, sits above whichever map renders. Pointer-events-none so
+             it doesn't intercept Google Maps clicks/drags. -->
+        <div class="absolute bottom-4 left-4 flex gap-3 text-[11px] uppercase tracking-[0.06em] text-fg-muted bg-bg-elevated/80 backdrop-blur px-3 py-1.5 rounded-md pointer-events-none">
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-accent"></span> {{ copy.racesPage.legendCompleted }}</span>
           <span class="flex items-center gap-1.5">
             <span class="w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-accent/30"></span> {{ copy.racesPage.legendNext }}
