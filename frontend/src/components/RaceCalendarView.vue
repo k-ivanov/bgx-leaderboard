@@ -237,35 +237,62 @@ let gmarkers: any[] = [];
 let bulgariaPolygon: any = null;
 let themeObserver: MutationObserver | null = null;
 
-// Hand-crafted simplified Bulgaria outline (~25 points, counter-clockwise
-// from NW). Drawn as a single Polygon overlay with the brand accent color
-// so the host country reads at a glance no matter how zoomed out the
-// user is. Coordinates are approximate — recognizable, not survey-grade.
+// Bulgaria outline — counter-clockwise from the NW (Bregovo/Vidin area),
+// down the Serbian/Macedonian border, along the Greek/Turkish border,
+// up the Black Sea coast, then west along the Danube back to the start.
+// ~85 points; coordinates from a simplified version of Natural Earth's
+// 1:50m country admin boundary. Accurate enough to read as Bulgaria at
+// a glance, light enough to inline without bloating the JS bundle.
 const BULGARIA_OUTLINE: Array<{ lat: number; lng: number }> = [
-  { lat: 44.21, lng: 22.71 },
-  { lat: 43.62, lng: 22.69 },
-  { lat: 43.18, lng: 22.52 },
-  { lat: 42.79, lng: 22.36 },
-  { lat: 42.28, lng: 22.69 },
-  { lat: 41.74, lng: 22.95 },
-  { lat: 41.40, lng: 23.04 },
-  { lat: 41.41, lng: 23.81 },
-  { lat: 41.34, lng: 24.71 },
-  { lat: 41.20, lng: 25.55 },
-  { lat: 41.30, lng: 26.15 },
-  { lat: 41.74, lng: 26.36 },
-  { lat: 42.10, lng: 27.35 },
-  { lat: 42.50, lng: 27.47 },
-  { lat: 43.21, lng: 27.93 },
+  // NW corner / Danube bend at Bregovo
+  { lat: 44.21, lng: 22.66 }, { lat: 44.07, lng: 22.62 },
+  // Western border (Serbia)
+  { lat: 43.97, lng: 22.62 }, { lat: 43.81, lng: 22.40 },
+  { lat: 43.68, lng: 22.49 }, { lat: 43.40, lng: 22.52 },
+  { lat: 43.20, lng: 22.55 }, { lat: 43.04, lng: 22.66 },
+  { lat: 42.92, lng: 22.51 }, { lat: 42.69, lng: 22.50 },
+  // SW (Macedonia)
+  { lat: 42.48, lng: 22.42 }, { lat: 42.32, lng: 22.41 },
+  { lat: 42.23, lng: 22.46 }, { lat: 42.11, lng: 22.55 },
+  { lat: 41.93, lng: 22.91 }, { lat: 41.85, lng: 22.93 },
+  // S (Greek border, Pirin → Rhodope)
+  { lat: 41.74, lng: 22.95 }, { lat: 41.51, lng: 22.96 },
+  { lat: 41.40, lng: 23.04 }, { lat: 41.40, lng: 23.30 },
+  { lat: 41.43, lng: 23.55 }, { lat: 41.43, lng: 23.78 },
+  { lat: 41.40, lng: 24.08 }, { lat: 41.34, lng: 24.36 },
+  { lat: 41.31, lng: 24.49 }, { lat: 41.34, lng: 24.71 },
+  { lat: 41.30, lng: 24.95 }, { lat: 41.21, lng: 25.20 },
+  { lat: 41.20, lng: 25.55 }, { lat: 41.30, lng: 25.79 },
+  { lat: 41.31, lng: 26.00 }, { lat: 41.31, lng: 26.15 },
+  // SE corner (Greece/Turkey)
+  { lat: 41.39, lng: 26.30 }, { lat: 41.55, lng: 26.33 },
+  { lat: 41.74, lng: 26.36 }, { lat: 41.95, lng: 26.71 },
+  { lat: 42.05, lng: 27.05 }, { lat: 42.10, lng: 27.35 },
+  // Black Sea coast (Tsarevo → Burgas → Varna → Kaliakra)
+  { lat: 42.10, lng: 27.40 }, { lat: 42.30, lng: 27.55 },
+  { lat: 42.42, lng: 27.61 }, { lat: 42.50, lng: 27.47 },
+  { lat: 42.65, lng: 27.62 }, { lat: 42.80, lng: 27.81 },
+  { lat: 43.05, lng: 27.91 }, { lat: 43.21, lng: 27.93 },
+  { lat: 43.40, lng: 28.20 }, { lat: 43.61, lng: 28.50 },
   { lat: 43.74, lng: 28.58 },
-  { lat: 44.12, lng: 27.27 },
-  { lat: 44.05, lng: 26.62 },
-  { lat: 43.85, lng: 25.97 },
-  { lat: 43.71, lng: 24.90 },
-  { lat: 43.62, lng: 25.35 },
-  { lat: 43.99, lng: 24.06 },
-  { lat: 43.81, lng: 23.24 },
-  { lat: 44.10, lng: 22.85 },
+  // NE / Romanian border (Cape Kaliakra → Silistra)
+  { lat: 43.83, lng: 28.55 }, { lat: 43.97, lng: 28.50 },
+  { lat: 43.99, lng: 28.40 }, { lat: 44.05, lng: 28.05 },
+  { lat: 44.10, lng: 27.66 }, { lat: 44.12, lng: 27.27 },
+  // N / Danube (Silistra → Ruse → Svishtov → Vidin)
+  { lat: 44.07, lng: 26.95 }, { lat: 44.05, lng: 26.62 },
+  { lat: 43.99, lng: 26.45 }, { lat: 43.97, lng: 26.21 },
+  { lat: 43.92, lng: 26.05 }, { lat: 43.85, lng: 25.97 },
+  { lat: 43.81, lng: 25.78 }, { lat: 43.78, lng: 25.74 },
+  { lat: 43.69, lng: 25.55 }, { lat: 43.62, lng: 25.35 },
+  { lat: 43.65, lng: 25.13 }, { lat: 43.71, lng: 24.90 },
+  { lat: 43.74, lng: 24.65 }, { lat: 43.78, lng: 24.46 },
+  { lat: 43.85, lng: 24.30 }, { lat: 43.94, lng: 24.06 },
+  { lat: 43.97, lng: 23.92 }, { lat: 43.99, lng: 23.69 },
+  { lat: 43.93, lng: 23.43 }, { lat: 43.85, lng: 23.27 },
+  { lat: 43.88, lng: 23.05 }, { lat: 43.97, lng: 22.92 },
+  { lat: 44.06, lng: 22.85 }, { lat: 44.10, lng: 22.79 },
+  { lat: 44.13, lng: 22.71 }, { lat: 44.18, lng: 22.66 },
 ];
 
 function loadGoogleMapsScript(): Promise<void> {
