@@ -60,6 +60,8 @@ export const copy = {
     colTime: 'Време',
     colDay1: 'Ден 1',
     colDay2: 'Ден 2',
+    colDay1Short: 'Д1',
+    colDay2Short: 'Д2',
     colCombinedTotal: 'Общо',
     colPoints: 'Т.',
     colLaps: 'Обиколки',
