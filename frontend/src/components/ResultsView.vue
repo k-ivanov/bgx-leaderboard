@@ -251,6 +251,8 @@ const round = computed<number>(() => {
   return events.value.findIndex(e => e.slug === activeRace.value!.slug) + 1;
 });
 
+const isMultiDay = computed<boolean>(() => (raceResults.value?.days?.length ?? 1) > 1);
+
 const standingsHasDropped = computed(
   () => standings.value?.championship_format === 'aggregate_2025',
 );
@@ -385,7 +387,12 @@ function urlForCategory(code: string): string {
               <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{{ copy.results.colHash }}</th>
               <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{{ copy.results.colNumber }}</th>
               <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{{ copy.results.colRider }}</th>
-              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colTime }}</th>
+              <template v-if="isMultiDay">
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colDay1 }}</th>
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colDay2 }}</th>
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colCombinedTotal }}</th>
+              </template>
+              <th v-else class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colTime }}</th>
               <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colPoints }}</th>
             </tr>
           </thead>
@@ -404,7 +411,12 @@ function urlForCategory(code: string): string {
                   <span v-if="r.rider.team" class="ml-2 text-xs text-fg-muted">{{ r.rider.team }}</span>
                 </a>
               </td>
-              <td class="px-3 py-3.5 text-right mono">{{ formatTime(r.time_ms) }}</td>
+              <template v-if="isMultiDay">
+                <td class="px-3 py-3.5 text-right mono" :class="{ 'text-fg-faint': r.day_1_time_ms == null }">{{ r.day_1_time_ms != null ? formatTime(r.day_1_time_ms) : (r.day_1_status || '—') }}</td>
+                <td class="px-3 py-3.5 text-right mono" :class="{ 'text-fg-faint': r.day_2_time_ms == null }">{{ r.day_2_time_ms != null ? formatTime(r.day_2_time_ms) : (r.day_2_status || '—') }}</td>
+                <td class="px-3 py-3.5 text-right mono font-semibold">{{ formatTime(r.time_ms) }}</td>
+              </template>
+              <td v-else class="px-3 py-3.5 text-right mono">{{ formatTime(r.time_ms) }}</td>
               <td class="px-3 py-3.5 text-right">
                 <span class="inline-block rounded-pill bg-accent-soft px-2.5 py-0.5 text-xs font-semibold text-accent-strong">
                   {{ fmtPoints(r.points) }}

@@ -62,50 +62,56 @@ def get_race_results(
         vals = [getattr(r, field) for r in rows if getattr(r, field) is not None]
         return sum(vals) if vals else None
 
-    # Combined-time scoring: eligible riders rank by sum(time_ms) across
-    # every day of the event, points come from the canonical BGX table.
-    # Ineligible riders (DNF any day, missing day) show with points=None,
-    # no position, after the ranked block.
+    days_present = sorted({(r.day or 1) for r in results})
+
+    # Combined-time scoring with tier fallback (see src/services/scoring.py).
     scoring = compute_event_scoring(results)
 
-    eligible_rows: list[tuple[int, EventResultRowOut]] = []
-    ineligible_rows: list[EventResultRowOut] = []
+    ranked_rows: list[tuple[int, EventResultRowOut]] = []
+    unranked_rows: list[EventResultRowOut] = []
     for rider_id, rider_rows in grouped.items():
         rider = rider_rows[0].rider
         score = scoring.get(rider_id)
         notes = next((r.notes for r in rider_rows if r.notes), None)
         cp_count = next((r.cp_count for r in rider_rows if r.cp_count is not None), None)
-        time_ms = _sum_or_none(rider_rows, "time_ms")
+        by_day = {(r.day or 1): r for r in rider_rows}
+        d1 = by_day.get(1)
+        d2 = by_day.get(2)
 
-        is_eligible = score is not None and score.combined_position is not None
+        ranked = score is not None and score.combined_position is not None
         row = EventResultRowOut(
             position=None,
             rider=build_rider_ref(rider),
-            points=score.points if is_eligible else None,
-            time_ms=score.combined_time_ms if is_eligible else time_ms,
+            points=score.points if ranked else None,
+            time_ms=score.combined_time_ms if ranked else None,
+            day_1_time_ms=(d1.time_ms if d1 and (d1.status or "").upper() == "FIN" else None),
+            day_2_time_ms=(d2.time_ms if d2 and (d2.status or "").upper() == "FIN" else None),
+            day_1_status=(d1.status if d1 else None),
+            day_2_status=(d2.status if d2 else None),
             gap_ms=_sum_or_none(rider_rows, "gap_ms"),
             gps_penalty_ms=_sum_or_none(rider_rows, "gps_penalty_ms"),
             laps=_sum_or_none(rider_rows, "laps"),
             cp_count=cp_count,
             notes=notes,
         )
-        if is_eligible:
-            eligible_rows.append((score.combined_position, row))
+        if ranked:
+            ranked_rows.append((score.combined_position, row))
         else:
-            ineligible_rows.append(row)
+            unranked_rows.append(row)
 
-    eligible_rows.sort(key=lambda x: (x[0], x[1].rider.race_number))
-    ineligible_rows.sort(key=lambda r: r.rider.race_number)
+    ranked_rows.sort(key=lambda x: (x[0], x[1].rider.race_number))
+    unranked_rows.sort(key=lambda r: r.rider.race_number)
 
     rows: list[EventResultRowOut] = []
-    for pos, row in eligible_rows:
+    for pos, row in ranked_rows:
         row.position = pos
         rows.append(row)
-    rows.extend(ineligible_rows)
+    rows.extend(unranked_rows)
 
     return EventResultsOut(
         season=SeasonRef.model_validate(season),
         category=CategoryRef.model_validate(category),
         event=EventRef.model_validate(event),
+        days=days_present,
         rows=rows,
     )

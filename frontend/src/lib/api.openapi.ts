@@ -375,6 +375,14 @@ export interface components {
             points?: number | null;
             /** Time Ms */
             time_ms?: number | null;
+            /** Day 1 Time Ms */
+            day_1_time_ms?: number | null;
+            /** Day 2 Time Ms */
+            day_2_time_ms?: number | null;
+            /** Day 1 Status */
+            day_1_status?: string | null;
+            /** Day 2 Status */
+            day_2_status?: string | null;
             /** Gap Ms */
             gap_ms?: number | null;
             /** Gps Penalty Ms */
@@ -391,6 +399,8 @@ export interface components {
             season: components["schemas"]["SeasonRef"];
             category: components["schemas"]["CategoryRef"];
             event: components["schemas"]["EventRef"];
+            /** Days */
+            days: number[];
             /** Rows */
             rows: components["schemas"]["EventResultRowOut"][];
         };
