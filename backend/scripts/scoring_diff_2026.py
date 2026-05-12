@@ -91,6 +91,12 @@ def main() -> None:
                     new_pos = new_scores[rider_id].combined_position
                     new_time = new_scores[rider_id].combined_time_ms
 
+                    by_day = {(r.day or 1): r for r in rider_rows}
+                    d1 = by_day.get(1)
+                    d2 = by_day.get(2)
+                    d1_time = (d1.time_ms if d1 and (d1.status or "").upper() == "FIN" else None)
+                    d2_time = (d2.time_ms if d2 and (d2.status or "").upper() == "FIN" else None)
+
                     season_totals_old[(cat.id, rider_id)] = (
                         season_totals_old.get((cat.id, rider_id), 0) + old_pts
                     )
@@ -106,9 +112,15 @@ def main() -> None:
                     name = f"#{rider.race_number} {rider.first_name} {rider.last_name}"
                     pos_str = str(new_pos) if new_pos is not None else "—"
                     tier_str = str(tier) if tier is not None else "—"
+                    d1_str = _fmt_time(d1_time) if d1_time is not None else (
+                        (d1.status if d1 else None) or "—"
+                    )
+                    d2_str = _fmt_time(d2_time) if d2_time is not None else (
+                        (d2.status if d2 else None) or "—"
+                    )
                     lines.append((
                         new_pos if new_pos is not None else 999,
-                        f"| {pos_str:>3} | {tier_str:>4} | {name:<40} | {old_pts:>5.0f} | {new_pts:>5.0f} | {delta:>+5.0f} | {_fmt_time(new_time):>10} |",
+                        f"| {pos_str:>3} | {tier_str:>4} | {name:<40} | {old_pts:>5.0f} | {new_pts:>5.0f} | {delta:>+5.0f} | {d1_str:>10} | {d2_str:>10} | {_fmt_time(new_time):>10} |",
                     ))
 
                 if not changes:
@@ -118,8 +130,8 @@ def main() -> None:
                 print()
                 print(f"_{changes} rider(s) with a points change._")
                 print()
-                print("| pos | tier | rider | old | new | Δ | time |")
-                print("|----:|-----:|-------|----:|----:|--:|-----:|")
+                print("| pos | tier | rider | old | new | Δ | day 1 | day 2 | total |")
+                print("|----:|-----:|-------|----:|----:|--:|------:|------:|------:|")
                 for _, line in lines:
                     print(line)
                 print()
