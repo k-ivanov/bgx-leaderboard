@@ -514,6 +514,7 @@ watch([races, selectedSlug, googleMapsContainer], () => {
               📘 {{ copy.racesPage.fbEventCta }}
             </a>
             <a
+              v-if="r.status === 'past'"
               :href="leaderboardHref(r.ev.slug, selectedYear)"
               class="mt-2 flex items-center justify-center rounded-lg border border-border px-4 py-2.5 text-sm font-semibold hover:border-accent transition-colors"
             >
