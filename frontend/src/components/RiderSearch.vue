@@ -126,7 +126,9 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open && (results.length > 0 || showEmpty)"
-      class="absolute right-0 mt-1 w-72 rounded-md border border-border bg-bg-elevated shadow-lg z-30"
+      class="absolute mt-1 z-30 rounded-md border border-border bg-bg-elevated shadow-lg
+             left-0 w-[calc(100vw-2rem)] max-w-[20rem]
+             sm:left-auto sm:right-0 sm:w-72 sm:max-w-none"
     >
       <ul v-if="results.length > 0" class="max-h-80 overflow-y-auto">
         <li
