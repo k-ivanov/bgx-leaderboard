@@ -58,7 +58,14 @@ jobs:
       - name: Compute next version tag
         id: version
         run: |
-          latest=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo 'v0.0.0')
+          # Pick the highest vX.Y.Z tag in the repo regardless of branch
+          # ancestry. `git describe --tags --abbrev=0` only looks at tags
+          # reachable from HEAD, so a force-rebase of main leaves the bump
+          # pointing at a stale ancestor and we collide with an existing
+          # tag on a parallel chain. Sorting all matching tags by version
+          # avoids that pitfall.
+          latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          latest=${latest:-v0.0.0}
           next=$(printf '%s' "$latest" | sed 's/^v//' | awk -F. '{ printf "%d.%d.%d", $1, $2, $3 + 1 }')
           echo "tag=v$next"            >> "$GITHUB_OUTPUT"
           echo "version=v$next"        >> "$GITHUB_OUTPUT"
