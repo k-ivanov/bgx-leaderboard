@@ -46,6 +46,14 @@ from src.db.models import Category, Event, EventResult, Rider, Season
 # Class (Bulgarian label in CSV) → category code
 # ---------------------------------------------------------------------------
 
+_CLASS_DAY_SUFFIX_RE = re.compile(r"\s+ДЕН\s+\d+$")
+
+
+def _normalize_class_label(label: str) -> str:
+    """Strip trailing ' ДЕН N' — day is carried in its own column."""
+    return _CLASS_DAY_SUFFIX_RE.sub("", label).strip()
+
+
 CLASS_MAP: dict[str, tuple[str, str]] = {
     # CSV label                     → (code,            display_name)
     "ПРОФИ":             ("profi",           "ПРОФИ"),
@@ -328,7 +336,7 @@ def import_race_day(csv_path: Path) -> None:
         categories_seen_codes: set[int] = set()
 
         # Pass 1: figure out which categories this CSV covers.
-        classes_in_file = {r.get("class", "").strip() for r in rows}
+        classes_in_file = {_normalize_class_label(r.get("class", "").strip()) for r in rows}
         for cls_label in classes_in_file:
             if cls_label not in CLASS_MAP:
                 if cls_label:
@@ -351,7 +359,7 @@ def import_race_day(csv_path: Path) -> None:
 
         # Pass 2: upsert riders + insert fresh EventResult rows.
         for row in rows:
-            cls_label = (row.get("class") or "").strip()
+            cls_label = _normalize_class_label((row.get("class") or "").strip())
             mapped = CLASS_MAP.get(cls_label)
             if mapped is None:
                 continue
