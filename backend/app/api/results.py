@@ -15,6 +15,7 @@ from app.schemas.common import (
 )
 from app.schemas.results import EventResultRowOut, EventResultsOut
 from src.db.models import Category, Event, EventResult, Rider
+from src.services.scoring import compute_event_scoring
 
 router = APIRouter(prefix="/api/seasons", tags=["race-results"])
 
@@ -53,8 +54,6 @@ def get_race_results(
         ).scalars()
     )
 
-    # Collapse per-day rows into one entry per rider — multi-day weekends
-    # count as ONE race (matches leaderboard + rider profile aggregation).
     grouped: dict[int, list[EventResult]] = {}
     for r in results:
         grouped.setdefault(r.rider_id, []).append(r)
@@ -63,53 +62,46 @@ def get_race_results(
         vals = [getattr(r, field) for r in rows if getattr(r, field) is not None]
         return sum(vals) if vals else None
 
-    # Aggregate per rider, then re-rank within the category by combined
-    # (points DESC, time ASC). For multi-day events the per-day position
-    # column is meaningless across days — we want overall race standings.
-    aggregated: list[tuple[Optional[float], Optional[int], EventResultRowOut]] = []
-    for rider_rows in grouped.values():
-        rider = rider_rows[0].rider
-        points_vals = [float(r.points) for r in rider_rows if r.points is not None]
-        points = sum(points_vals) if points_vals else None
-        time_ms = _sum_or_none(rider_rows, "time_ms")
+    # Combined-time scoring: eligible riders rank by sum(time_ms) across
+    # every day of the event, points come from the canonical BGX table.
+    # Ineligible riders (DNF any day, missing day) show with points=None,
+    # no position, after the ranked block.
+    scoring = compute_event_scoring(results)
 
-        any_finished = any((r.status or "").upper() == "FIN" for r in rider_rows)
+    eligible_rows: list[tuple[int, EventResultRowOut]] = []
+    ineligible_rows: list[EventResultRowOut] = []
+    for rider_id, rider_rows in grouped.items():
+        rider = rider_rows[0].rider
+        score = scoring.get(rider_id)
         notes = next((r.notes for r in rider_rows if r.notes), None)
         cp_count = next((r.cp_count for r in rider_rows if r.cp_count is not None), None)
+        time_ms = _sum_or_none(rider_rows, "time_ms")
 
-        aggregated.append((
-            points if any_finished else None,
-            time_ms if any_finished else None,
-            EventResultRowOut(
-                position=None,
-                rider=build_rider_ref(rider),
-                points=points,
-                time_ms=time_ms,
-                gap_ms=_sum_or_none(rider_rows, "gap_ms"),
-                gps_penalty_ms=_sum_or_none(rider_rows, "gps_penalty_ms"),
-                laps=_sum_or_none(rider_rows, "laps"),
-                cp_count=cp_count,
-                notes=notes,
-            ),
-        ))
-
-    aggregated.sort(
-        key=lambda x: (
-            x[0] is None,
-            -(x[0] or 0),
-            x[1] is None,
-            x[1] or 0,
-            x[2].rider.race_number,
+        is_eligible = score is not None and score.combined_position is not None
+        row = EventResultRowOut(
+            position=None,
+            rider=build_rider_ref(rider),
+            points=score.points if is_eligible else None,
+            time_ms=score.combined_time_ms if is_eligible else time_ms,
+            gap_ms=_sum_or_none(rider_rows, "gap_ms"),
+            gps_penalty_ms=_sum_or_none(rider_rows, "gps_penalty_ms"),
+            laps=_sum_or_none(rider_rows, "laps"),
+            cp_count=cp_count,
+            notes=notes,
         )
-    )
+        if is_eligible:
+            eligible_rows.append((score.combined_position, row))
+        else:
+            ineligible_rows.append(row)
+
+    eligible_rows.sort(key=lambda x: (x[0], x[1].rider.race_number))
+    ineligible_rows.sort(key=lambda r: r.rider.race_number)
 
     rows: list[EventResultRowOut] = []
-    next_pos = 1
-    for points, _time_ms, row in aggregated:
-        if points is not None:
-            row.position = next_pos
-            next_pos += 1
+    for pos, row in eligible_rows:
+        row.position = pos
         rows.append(row)
+    rows.extend(ineligible_rows)
 
     return EventResultsOut(
         season=SeasonRef.model_validate(season),

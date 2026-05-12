@@ -6,7 +6,16 @@ This document explains how the BGX dashboard computes standings, and why the num
 
 We are an **archive of every result** the championship publishes, not a faithful mirror of the official scoring. Three deliberate choices drive the differences:
 
-1. **Multi-day events sum cumulatively.** A two-day weekend (Gorna Malina, Botevgrad, etc.) is one `Event`, but every day's results are imported. The points for that event are the sum of every day's points for the rider.
+1. **Multi-day events are scored by combined time, with partial-finisher fallback.** A two-day weekend (Gorna Malina, Botevgrad, etc.) is one `Event` with every day's results imported. Points come from a position table whose maximum scales with the number of days:
+   - **1-day events** (max 25): `25, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1` for positions 1–20, 0 below.
+   - **2-day events** (max 40): `40, 34, 30, 27, 24, 22, 20, 18, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1` (sum of the day-1 and day-2 scales at matching positions).
+
+   Ranking for a 2-day event proceeds in three tiers, each sorted ascending by time, and positions count across tiers (a Tier-2 rider in position 21+ earns 0, same as Tier 1):
+   1. **Full finishers** (`FIN` + positive `time_ms` on every day) — ranked by sum of `time_ms`.
+   2. **Day-1-only finishers** — ranked by day-1 `time_ms`. Placed below every Tier-1 rider.
+   3. **Day-2-only finishers** — ranked by day-2 `time_ms`. Placed below every Tier-2 rider.
+
+   Day-1 has priority over day-2 by design — finishing the opening day is harder to recover from missing. Riders with no `FIN` on any day get 0 points and no position. Implemented in [`backend/src/services/scoring.py`](../backend/src/services/scoring.py).
 2. **No drop-worst rule.** Some championships discard a rider's worst result when they have 7+ events. We do not. Every race counts.
 3. **Some races are not imported.** 2025 Six Days, for example, is not in our dataset. The `events` list per season is the source of truth.
 
