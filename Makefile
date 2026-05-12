@@ -208,6 +208,10 @@ db-seed-prod: ## Push a local data dump → prod (assumes `alembic upgrade head`
 	@read _
 	@$(ROOT)/scripts/db-restore.sh prod "$(FILE)" --yes --data-only
 
+.PHONY: db-sync-prod
+db-sync-prod: ## Dump local DB and push it onto prod (data-only). Backs up prod first. Usage: make db-sync-prod [ARGS="--yes --no-prod-backup"]
+	@$(ROOT)/scripts/sync-local-to-prod.sh $(ARGS)
+
 # ============================================================================
 # 🧪 Test + type-check
 # ============================================================================

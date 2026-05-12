@@ -54,7 +54,9 @@
       "Bash(nohup npm *)",
       "Bash(./.venv/bin/python *)",
       "Bash(STATS_PASSWORD=test123 ADMIN_PASSWORD=letmein .venv/bin/uvicorn app.main:app *)",
-      "Bash(awk -F, 'NR>1 && \\($8==\"\" || $9==\"\"\\)' seed_data/2026/hard_enduro_buhovo_2026-day2.csv)"
+      "Bash(awk -F, 'NR>1 && \\($8==\"\" || $9==\"\"\\)' seed_data/2026/hard_enduro_buhovo_2026-day2.csv)",
+      "Bash(awk -F',' 'NR>1 {print $5}' seed_data/2026/hard_enduro_botevgrad-2026-day1.csv)",
+      "Bash(awk -F',' 'NR>1 {print $5}' seed_data/2026/hard_enduro_botevgrad-2026-day2.csv)"
     ]
   }
 }
