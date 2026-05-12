@@ -385,11 +385,11 @@ function urlForCategory(code: string): string {
           <thead>
             <tr class="bg-bg-muted">
               <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{{ copy.results.colHash }}</th>
-              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border">{{ copy.results.colNumber }}</th>
+              <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-center border-b border-border hidden md:table-cell">{{ copy.results.colNumber }}</th>
               <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-left border-b border-border">{{ copy.results.colRider }}</th>
               <template v-if="isMultiDay">
-                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colDay1 }}</th>
-                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colDay2 }}</th>
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border hidden md:table-cell">{{ copy.results.colDay1 }}</th>
+                <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border hidden md:table-cell">{{ copy.results.colDay2 }}</th>
                 <th class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colCombinedTotal }}</th>
               </template>
               <th v-else class="text-fg-faint text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-3 text-right border-b border-border">{{ copy.results.colTime }}</th>
@@ -402,18 +402,35 @@ function urlForCategory(code: string): string {
                 <span v-if="r.position == null" class="text-fg-faint text-[11px]">DNF</span>
                 <span v-else class="inline-flex h-7 min-w-[28px] items-center justify-center rounded-md bg-bg-muted px-2 font-bold text-[13px]">{{ r.position }}</span>
               </td>
-              <td class="px-3 py-3.5 text-center">
+              <td class="px-3 py-3.5 text-center hidden md:table-cell">
                 <a :href="`/rider/${encodeURIComponent(r.rider.slug)}`" class="mono hover:text-accent">{{ r.rider.race_number }}</a>
               </td>
-              <td class="px-3 py-3.5">
+              <td class="px-2 py-3.5 md:px-3">
                 <a :href="`/rider/${encodeURIComponent(r.rider.slug)}`" class="hover:text-accent">
+                  <span class="mono mr-1.5 text-xs text-fg-faint md:hidden">#{{ r.rider.race_number }}</span>
                   <span class="font-semibold">{{ r.rider.first_name }} {{ r.rider.last_name }}</span>
                   <span v-if="r.rider.team" class="ml-2 text-xs text-fg-muted">{{ r.rider.team }}</span>
                 </a>
+                <div v-if="isMultiDay" class="mt-1 flex flex-wrap gap-1 md:hidden">
+                  <span
+                    class="inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px]"
+                    :class="r.day_1_time_ms != null ? 'bg-bg-muted' : 'bg-[rgba(220,38,38,0.08)]'"
+                  >
+                    <span class="font-bold text-fg-faint">{{ copy.results.colDay1Short }}</span>
+                    <span class="mono font-semibold" :class="r.day_1_time_ms == null && 'text-danger'">{{ r.day_1_time_ms != null ? formatTime(r.day_1_time_ms) : (r.day_1_status || '—') }}</span>
+                  </span>
+                  <span
+                    class="inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px]"
+                    :class="r.day_2_time_ms != null ? 'bg-bg-muted' : 'bg-[rgba(220,38,38,0.08)]'"
+                  >
+                    <span class="font-bold text-fg-faint">{{ copy.results.colDay2Short }}</span>
+                    <span class="mono font-semibold" :class="r.day_2_time_ms == null && 'text-danger'">{{ r.day_2_time_ms != null ? formatTime(r.day_2_time_ms) : (r.day_2_status || '—') }}</span>
+                  </span>
+                </div>
               </td>
               <template v-if="isMultiDay">
-                <td class="px-3 py-3.5 text-right mono" :class="{ 'text-fg-faint': r.day_1_time_ms == null }">{{ r.day_1_time_ms != null ? formatTime(r.day_1_time_ms) : (r.day_1_status || '—') }}</td>
-                <td class="px-3 py-3.5 text-right mono" :class="{ 'text-fg-faint': r.day_2_time_ms == null }">{{ r.day_2_time_ms != null ? formatTime(r.day_2_time_ms) : (r.day_2_status || '—') }}</td>
+                <td class="px-3 py-3.5 text-right mono hidden md:table-cell" :class="{ 'text-fg-faint': r.day_1_time_ms == null }">{{ r.day_1_time_ms != null ? formatTime(r.day_1_time_ms) : (r.day_1_status || '—') }}</td>
+                <td class="px-3 py-3.5 text-right mono hidden md:table-cell" :class="{ 'text-fg-faint': r.day_2_time_ms == null }">{{ r.day_2_time_ms != null ? formatTime(r.day_2_time_ms) : (r.day_2_status || '—') }}</td>
                 <td class="px-3 py-3.5 text-right mono font-semibold">{{ formatTime(r.time_ms) }}</td>
               </template>
               <td v-else class="px-3 py-3.5 text-right mono">{{ formatTime(r.time_ms) }}</td>
