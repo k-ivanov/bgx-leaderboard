@@ -301,6 +301,15 @@ async function renderGoogleMap() {
   try {
     await loadGoogleMapsScript();
     const g = (window as any).google;
+    // Year switches flip `loading` to true, which unmounts the v-else grid
+    // and with it the map's host element. When it remounts, `gmap` still
+    // references the old (now detached) div — recreate so markers land on
+    // the new container.
+    if (gmap && gmap.getDiv() !== googleMapsContainer.value) {
+      gmarkers.forEach(m => m.setMap(null));
+      gmarkers = [];
+      gmap = null;
+    }
     if (!gmap) {
       // Style matched to hardendurobotevgrad.com: hybrid imagery (satellite
       // + road labels) with the default Google controls left intact so users
