@@ -130,19 +130,27 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Write frontend/.env for client bundle
+        working-directory: frontend
+        env:
+          PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Vite only inlines `import.meta.env.PUBLIC_*` into the *client*
+          # bundle (used by Vue islands like RaceCalendarView) when the
+          # vars come from a .env file. Plain shell env reaches Astro's
+          # SSG pages but not the client bundle. Writing this file makes
+          # the Maps API key visible to the Vue map component.
+          {
+            echo "PUBLIC_GOOGLE_MAPS_API_KEY=${PUBLIC_GOOGLE_MAPS_API_KEY}"
+            echo "PUBLIC_APP_VERSION=${PUBLIC_APP_VERSION}"
+          } > .env
+
       - name: Build frontend (writes frontend/dist)
         working-directory: frontend
         env:
           API_URL: http://127.0.0.1:5001
           SITE: https://hardendurobulgaria.com
-          # Astro/Vite expose PUBLIC_* to client code via import.meta.env;
-          # BaseLayout.astro reads this and renders it in the footer.
-          PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
-          # Google Maps key for the /races map. Comes from a GH secret;
-          # baked into the static HTML at build time. When unset (e.g.
-          # local dev without a key), the page falls back to the SVG
-          # silhouette automatically.
-          PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: npm run build
 
       - name: Backend log on failure
