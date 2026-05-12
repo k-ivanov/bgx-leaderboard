@@ -82,13 +82,34 @@ def main() -> None:
 
                 new_scores = compute_event_scoring(rows)
 
+                # Old-policy position: rank riders within (event, category) by
+                # the sum of their CSV points, descending. Riders with 0 points
+                # get no position (they didn't earn anything under the old
+                # rules either). Ties broken by race_number ascending so the
+                # output is stable across runs.
+                old_pts_by_rider: dict[int, float] = {
+                    rid: sum(float(r.points or 0) for r in rs)
+                    for rid, rs in by_rider.items()
+                }
+                ranked_old = sorted(
+                    [rid for rid, pts in old_pts_by_rider.items() if pts > 0],
+                    key=lambda rid: (
+                        -old_pts_by_rider[rid],
+                        by_rider[rid][0].rider.race_number,
+                    ),
+                )
+                old_pos_by_rider: dict[int, int] = {
+                    rid: i + 1 for i, rid in enumerate(ranked_old)
+                }
+
                 lines: list[tuple[int, str]] = []
                 changes = 0
                 for rider_id, rider_rows in by_rider.items():
                     rider = rider_rows[0].rider
-                    old_pts = sum(float(r.points or 0) for r in rider_rows)
+                    old_pts = old_pts_by_rider[rider_id]
                     new_pts = new_scores[rider_id].points
                     new_pos = new_scores[rider_id].combined_position
+                    old_pos = old_pos_by_rider.get(rider_id)
                     new_time = new_scores[rider_id].combined_time_ms
 
                     by_day = {(r.day or 1): r for r in rider_rows}
@@ -110,7 +131,13 @@ def main() -> None:
                     delta = new_pts - old_pts
                     tier = new_scores[rider_id].tier
                     name = f"#{rider.race_number} {rider.first_name} {rider.last_name}"
-                    pos_str = str(new_pos) if new_pos is not None else "—"
+                    new_pos_str = str(new_pos) if new_pos is not None else "—"
+                    old_pos_str = str(old_pos) if old_pos is not None else "—"
+                    if old_pos is not None and new_pos is not None:
+                        pos_delta = new_pos - old_pos
+                        pos_delta_str = f"{pos_delta:+d}" if pos_delta != 0 else "0"
+                    else:
+                        pos_delta_str = "—"
                     tier_str = str(tier) if tier is not None else "—"
                     d1_str = _fmt_time(d1_time) if d1_time is not None else (
                         (d1.status if d1 else None) or "—"
@@ -120,7 +147,7 @@ def main() -> None:
                     )
                     lines.append((
                         new_pos if new_pos is not None else 999,
-                        f"| {pos_str:>3} | {tier_str:>4} | {name:<40} | {old_pts:>5.0f} | {new_pts:>5.0f} | {delta:>+5.0f} | {d1_str:>10} | {d2_str:>10} | {_fmt_time(new_time):>10} |",
+                        f"| {new_pos_str:>3} | {old_pos_str:>3} | {pos_delta_str:>4} | {tier_str:>4} | {name:<40} | {new_pts:>5.0f} | {old_pts:>5.0f} | {delta:>+5.0f} | {d1_str:>10} | {d2_str:>10} | {_fmt_time(new_time):>10} |",
                     ))
 
                 if not changes:
@@ -130,8 +157,8 @@ def main() -> None:
                 print()
                 print(f"_{changes} rider(s) with a points change._")
                 print()
-                print("| pos | tier | rider | old | new | Δ | day 1 | day 2 | total |")
-                print("|----:|-----:|-------|----:|----:|--:|------:|------:|------:|")
+                print("| new pos | old pos | Δ pos | tier | rider | new pts | old pts | Δ pts | day 1 | day 2 | total |")
+                print("|--------:|--------:|------:|-----:|-------|--------:|--------:|------:|------:|------:|------:|")
                 for _, line in lines:
                     print(line)
                 print()
