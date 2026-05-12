@@ -9,21 +9,10 @@ For 2025 data we don't have raw per-event positions, only points per rider.
 Points are converted to a position via the BGX championship points table
 (25→1, 22→2, 20→3, 18→4, 16→5, 15→6, … 1→20, 0→21).
 
-For 2026+ per-event data, EventResult.position is set by the importer and
-is used directly when present.
-
-Scoring policy (improvements.md P2 #12 — full text in docs/scoring.md):
-  Each (rider, event) pair sums every EventResult row across all `day`
-  values. A two-day weekend produces ONE event total equal to day-1 +
-  day-2 + … . This is deliberate — the dashboard is an archive of every
-  result the championship publishes, not a faithful mirror of any
-  single scoring rule. The validation report at
-  .reports/2025-validation-vs-hardendurobulgaria.md quantifies the
-  resulting deltas vs sources that use day-1-only.
-
-  To switch to day-1-only without breaking the archive: add a `?day=1`
-  query param at the API layer that filters EventResult.day == 1 and
-  document the new behavior in docs/scoring.md.
+For 2026+ per-event data with day-by-day times, an event's points are
+computed by ``services.scoring.compute_event_scoring``: rank eligible
+riders by combined time across all days, then award from the canonical
+25/22/20/… table. Full policy: ``docs/scoring.md``.
 """
 
 from dataclasses import dataclass
@@ -33,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..db.models import Category, Event, EventResult, Rider, Season
+from .scoring import compute_event_scoring
 
 # BGX 2025 points → position. 0 points maps to 21 ("raced, outside top 20").
 _POINTS_TO_POSITION: dict[float, int] = {
@@ -121,29 +111,31 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
         ).scalars()
     )
 
-    # Field-size lookup for the percentile tiebreaker. Counts the number of
-    # finishers (rows with non-null position) per (event, day) within this
-    # category, then collapses to per-event by taking the max across days
-    # (so a 2-day weekend uses whichever day had the bigger field).
-    # Single pass over the data we already loaded — no extra SQL.
-    finishers_per_event_day: dict[tuple[int, int], int] = {}
-    for rider in riders:
-        for er in rider.results:
-            if er.position is None:
-                continue
-            key = (er.event_id, er.day or 1)
-            finishers_per_event_day[key] = finishers_per_event_day.get(key, 0) + 1
+    # Combined-time event scoring, computed once per event for this category.
+    # Each rider's per-event entry below reads its points & position from
+    # this table; if the rider is ineligible (DNF any day / missing day),
+    # they appear with points=0 and position=None.
+    rider_ids_in_cat = {r.id for r in riders}
+    event_scoring: dict[int, dict] = {}
+    for ev in events:
+        cat_results = [
+            er for r in riders for er in r.results if er.event_id == ev.id
+        ]
+        if cat_results:
+            event_scoring[ev.id] = compute_event_scoring(cat_results)
+
+    # Field-size lookup for the percentile tiebreaker. Counts eligible
+    # finishers (riders with a real combined position) per event in this
+    # category.
     finishers_per_event: dict[int, int] = {}
-    for (eid, _day), n in finishers_per_event_day.items():
-        if n > finishers_per_event.get(eid, 0):
-            finishers_per_event[eid] = n
+    for eid, scores in event_scoring.items():
+        finishers_per_event[eid] = sum(
+            1 for s in scores.values() if s.combined_position is not None
+        )
 
     rows: list[StandingsRow] = []
 
     for rider in riders:
-        # First group raw results by event, then collapse the per-day rows into
-        # a single championship entry. Points sum across days; position is the
-        # best (lowest) day's position.
         per_event: dict[int, list] = {}
         for er in rider.results:
             per_event.setdefault(er.event_id, []).append(er)
@@ -151,31 +143,25 @@ def get_standings(session: Session, season: Season, category: Category) -> list[
         entries: dict[str, RiderEventEntry] = {}
         total_inverse_position = 0.0
         has_any_explicit_finish = False
-        for event_id, day_rows in per_event.items():
+        for event_id, _day_rows in per_event.items():
             ev = event_by_id.get(event_id)
             if ev is None:
                 continue
-            total_event_points = sum(float(r.points or 0) for r in day_rows)
-            # Best (lowest) position across the days. Fall back to the
-            # points-derived position if no day has an explicit position.
-            explicit_positions = [r.position for r in day_rows if r.position is not None]
-            if explicit_positions:
+            score = event_scoring.get(event_id, {}).get(rider.id)
+            if score is None:
+                continue
+            event_points = score.points
+            event_position = score.combined_position
+            if event_position is not None:
                 has_any_explicit_finish = True
-                best_event_position = min(explicit_positions)
-                # Percentile contribution: 1.0 for an event win, ~1/finishers
-                # for last place. Imputed positions don't count — there's no
-                # real result there to rank against.
                 finishers = finishers_per_event.get(event_id, 0)
                 if finishers > 0:
-                    contribution = (finishers - best_event_position + 1) / finishers
+                    contribution = (finishers - event_position + 1) / finishers
                     total_inverse_position += max(0.0, min(1.0, contribution))
-            else:
-                best_event_position = position_from_points(total_event_points)
-                # Position was imputed (no explicit data) — contributes 0.
             entries[ev.slug] = RiderEventEntry(
                 event=ev,
-                points=total_event_points,
-                position=best_event_position,
+                points=event_points,
+                position=event_position if event_position is not None else position_from_points(event_points),
             )
 
         races_participated = len(entries)
