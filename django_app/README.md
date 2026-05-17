@@ -119,22 +119,45 @@ cd backend && ./start.sh        # uvicorn on :5001 (unchanged)
 
 ## Tests
 
+Two-tier verification (orchestrator decision B). The suite has grown well past
+the F1 scaffold — it now covers contract/slug/mount-order/redirects/CORS,
+the 2025 golden fixtures, and the old↔new `assert_json_parity` rig:
+
 ```bash
-cd django_app && pytest          # F1 scaffold smoke tests (4); exits 0.
+cd django_app
+# Tier-1 — fast, no live DB, gates every slice (~268 passed / 5 skipped):
+pytest -m "not parity"
+# Tier-2 — needs the seeded Postgres, the hard I1 parity gate
+#          (~114 passed / 1 xfailed):
+DATABASE_URL=postgresql://bgx:bgx@localhost:5432/bgx_django pytest -m parity
 ```
 
-F3 replaces/extends this with the 2025 golden fixtures + the old↔new
-`assert_json_parity` rig. F1 only proves the harness runs.
+The 5 Tier-1 skips are skip-don't-fake guards for Postgres-only SQL
+(`test_stats.py` ×4 — `EXTRACT(epoch …)`; `test_track.py` ×1 — concurrent
+`ON CONFLICT` burst). The 1 Tier-2 xfail is the documented X1 unmatched-`/api/*`
+404 body separator divergence (`{"detail": "Not Found"}` spaced vs FastAPI
+compact). See the root [`CLAUDE.md`](../CLAUDE.md) for the full run/seed/test
+flow and `.plan/MIGRATION_REHEARSAL.md` for the cutover runbook.
+
+### Migrate + seed (local scratch DB only — NEVER prod)
+
+```bash
+cd django_app
+DATABASE_URL=postgresql://bgx:bgx@localhost:5432/bgx_django python manage.py migrate
+DATABASE_URL=postgresql://bgx:bgx@localhost:5432/bgx_django python manage.py seed_all
+# per-year importers also exist: seed_new, import_2025, import_race_day,
+# upsert_calendar, scoring_diff_2026, bootstrap_admin
+```
 
 ## Container
 
 `Dockerfile.django` (parallel to the unchanged `./Dockerfile`):
 
 ```bash
-./scripts/build-image.sh bgx-dashboard:django-f1 django
+./scripts/build-image.sh bgx-dashboard:latest django
 # Stage 1 = Astro (identical to the FastAPI image).
 # Stage 2 = `manage.py migrate --noinput` then gunicorn -k uvicorn.workers.UvicornWorker.
-docker run --rm -p 5001:5001 -e DATABASE_URL=postgresql://bgx:bgx@host.docker.internal:5432/bgx bgx-dashboard:django-f1
+docker run --rm -p 5001:5001 -e DATABASE_URL=postgresql://bgx:bgx@host.docker.internal:5432/bgx_django bgx-dashboard:latest
 ```
 
 Gunicorn is retained with a uvicorn ASGI worker (decision OV2=B). The original

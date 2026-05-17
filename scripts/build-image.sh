@@ -40,13 +40,21 @@ echo "[build-image] Stage 1 API URL: ${API_URL}"
 # resolves to from inside a Docker build.
 HOST_API_URL="${API_URL/host.docker.internal/localhost}"
 if ! curl -fsS "${HOST_API_URL}/health" > /dev/null; then
-    echo "[build-image] FastAPI is not reachable at ${HOST_API_URL}/health"
-    echo "[build-image] Start it with: cd backend && ./start.sh"
-    echo "[build-image] Or: docker compose up -d postgres && (cd backend && uvicorn app.main:app --port 5001)"
+    echo "[build-image] API is not reachable at ${HOST_API_URL}/health"
+    if [ "$FLAVOR" = "django" ]; then
+        echo "[build-image] Start the Django app (the new app):"
+        echo "[build-image]   docker compose up -d postgres"
+        echo "[build-image]   cd django_app && DATABASE_URL=postgresql://bgx:bgx@localhost:5432/bgx_django \\"
+        echo "[build-image]     gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker -b 127.0.0.1:5001"
+        echo "[build-image]   (or: DATABASE_URL=... python manage.py runserver 5001)"
+    else
+        echo "[build-image] Start the frozen FastAPI oracle: cd backend && ./start.sh"
+        echo "[build-image] Or: docker compose up -d postgres && (cd backend && uvicorn app.main:app --port 5001)"
+    fi
     exit 1
 fi
 
-echo "[build-image] FastAPI is healthy. Running docker build…"
+echo "[build-image] API is healthy. Running docker build…"
 DOCKER_BUILDKIT=1 docker build \
     --file "$(dirname "$0")/../${DOCKERFILE}" \
     --build-arg "API_URL=${API_URL}" \
@@ -56,6 +64,13 @@ DOCKER_BUILDKIT=1 docker build \
 echo "[build-image] Done. Image: ${TAG}"
 echo ""
 echo "Run with:"
-echo "  docker run --rm -p 5001:5001 \\"
-echo "    -e DATABASE_URL=postgresql+psycopg2://bgx:bgx@host.docker.internal:5432/bgx \\"
-echo "    ${TAG}"
+if [ "$FLAVOR" = "django" ]; then
+    # Django/psycopg3 uses the plain postgresql:// scheme (no +psycopg2).
+    echo "  docker run --rm -p 5001:5001 \\"
+    echo "    -e DATABASE_URL=postgresql://bgx:bgx@host.docker.internal:5432/bgx_django \\"
+    echo "    ${TAG}"
+else
+    echo "  docker run --rm -p 5001:5001 \\"
+    echo "    -e DATABASE_URL=postgresql+psycopg2://bgx:bgx@host.docker.internal:5432/bgx \\"
+    echo "    ${TAG}"
+fi
