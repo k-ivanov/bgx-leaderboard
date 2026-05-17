@@ -253,3 +253,73 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Django must NOT auto-append a slash and 301 — that would break the X1
 # redirect contract + the indexed static URLs.
 APPEND_SLASH = False
+
+
+# === X2: security/proxy/TLS ================================================
+# Owned by X2 (task plan §X2). ADDITIVE-ONLY block — appended at the end so
+# F2/X3 can edit this file concurrently without conflict. It only AUGMENTS
+# existing keys (MIDDLEWARE/ALLOWED_HOSTS) via list mutation and adds new
+# SECURE_*/CSRF settings; it never reorders or rewrites the F1 definitions
+# above. Source of truth: backend/app/security_headers.py + main.py gated docs
+# + review OV3 (proxy/TLS). Same-origin is preserved: NO CORS middleware is
+# added here and none exists elsewhere — zero Access-Control-* headers ship.
+
+# --- Baseline security-headers middleware (port of FastAPI parity oracle) ---
+# Registered FIRST (outermost) so its process_response runs LAST and is the
+# final writer for every header it owns — guarantees the byte-identical
+# header set even though Django's SecurityMiddleware also touches some of
+# them. HttpResponse.headers is single-value + case-insensitive, so this
+# replaces (never duplicates) any value an inner middleware set.
+if "core.security_headers.SecurityHeadersMiddleware" not in MIDDLEWARE:
+    MIDDLEWARE = ["core.security_headers.SecurityHeadersMiddleware", *MIDDLEWARE]
+
+# --- Proxy / TLS (review OV3) ----------------------------------------------
+# Railway terminates TLS at the edge and forwards plain HTTP to the app with
+# X-Forwarded-Proto: https. Without this, request.is_secure() is False for a
+# forwarded request and HSTS is silently dropped (the documented X2 failure
+# mode). SECURE_* flags alone are insufficient — the proxy header binding is
+# what makes Django treat the forwarded request as HTTPS.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Host-header validation. The FastAPI app had NO host validation, so the F1
+# scaffold default stays permissive ("*") unless ops sets DJANGO_ALLOWED_HOSTS
+# (already parsed into ALLOWED_HOSTS by the F1 block above). This block only
+# adds the canonical Railway host when one is provided, without dropping the
+# operator's explicit list (additive — never narrows an explicit config).
+_railway_host = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+if _railway_host and "*" not in ALLOWED_HOSTS and _railway_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS = [*ALLOWED_HOSTS, _railway_host]
+
+# CSRF trusted origins MUST be scheme-qualified (Django requirement) for any
+# cross-origin POST behind the proxy (e.g. the X3 admin login form over the
+# forwarded-HTTPS origin). The read-only public API is same-origin and unaffected.
+CSRF_TRUSTED_ORIGINS = [
+    o.strip()
+    for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if o.strip()
+]
+if _railway_host:
+    _railway_origin = f"https://{_railway_host}"
+    if _railway_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS = [*CSRF_TRUSTED_ORIGINS, _railway_origin]
+
+# --- Align Django's own SECURE_* so it can't emit a DIVERGENT header --------
+# Django's SecurityMiddleware default SECURE_REFERRER_POLICY is "same-origin",
+# but the FastAPI parity oracle emits "strict-origin-when-cross-origin".
+# Pin Django's value to the parity value so even if ordering ever changed,
+# the byte-identical Referrer-Policy is the only possible outcome. Our X2
+# middleware still owns the authoritative write.
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+# X2's middleware is the sole HSTS authority (exact "max-age=63072000;
+# includeSubDomains", scheme+proxy-sensitive). Keep Django's HSTS OFF so it
+# can't emit a second/divergent Strict-Transport-Security.
+SECURE_HSTS_SECONDS = 0
+# Behavior parity: the FastAPI app never force-redirected http→https
+# (TLS is terminated at the Railway edge). Do not introduce a redirect.
+SECURE_SSL_REDIRECT = False
+# Mark session/CSRF cookies secure only when actually behind TLS in prod;
+# DEBUG (dev http) keeps them usable. Parity-neutral hardening that depends
+# on the same forwarded-proto detection configured above.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+# === END X2: security/proxy/TLS ============================================
