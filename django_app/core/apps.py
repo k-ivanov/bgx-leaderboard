@@ -9,6 +9,12 @@ from django.apps import AppConfig
 
 
 class CoreConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
+    # F2: pinned to AutoField (32-bit integer), NOT BigAutoField. The real
+    # production *_id_seq sequences are integer (Alembic sa.Integer() PKs);
+    # an implicit BigAutoField would diverge from the adopted schema. The
+    # project-wide DEFAULT_AUTO_FIELD stays BigAutoField — Django's own
+    # contrib tables are created fresh and may use bigint (expected, see
+    # core/MIGRATION_REHEARSAL.md). This override is scoped to `core` only.
+    default_auto_field = "django.db.models.AutoField"
     name = "core"
     verbose_name = "BGX core (models, admin, importers)"
