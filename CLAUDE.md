@@ -8,11 +8,13 @@ profiles, and a race calendar.
 
 | Layer | Tech | Lives in |
 |---|---|---|
-| Frontend | Astro 4 SSG + Tailwind, 0 KB JS baseline | `frontend/` |
-| Backend | FastAPI 0.110 + Pydantic v2 + SQLAlchemy 2 | `backend/app/` |
-| Data | Postgres + Alembic migrations | `backend/alembic/`, `backend/src/db/` |
-| Services (domain) | Pure-Python computed leaderboards + rider profiles | `backend/src/services/` |
-| Deploy | Single Docker image, Railway | `Dockerfile`, `railway.json` |
+| Frontend | Astro 4 SSG + Tailwind, 0 KB JS baseline (unchanged) | `frontend/` |
+| Backend (NEW) | Django 6 + Django Ninja 1.x + Pydantic v2 | `django_app/` |
+| Backend (FROZEN oracle) | FastAPI 0.110 + Pydantic v2 + SQLAlchemy 2 | `backend/app/` |
+| Data (NEW) | Postgres + Django migrations | `django_app/core/migrations/` |
+| Data (FROZEN oracle) | Postgres + Alembic migrations | `backend/alembic/`, `backend/src/db/` |
+| Services (domain) | Pure-Python computed leaderboards + rider profiles | `django_app/core/services/`, `backend/src/services/` |
+| Deploy | Single Docker image, Railway | `Dockerfile.django` (new), `Dockerfile` (frozen), `railway.json` |
 
 The refactor from FastHTML to FastAPI + Astro SSG was done across Phases 0–5.
 Full history: `.plan/refactor-plan.md` and the three review files alongside it.
@@ -62,37 +64,78 @@ Full history: `.plan/refactor-plan.md` and the three review files alongside it.
    scoring. Multi-day events sum cumulatively, no drop-worst rule, some races
    may be intentionally absent. Full policy: [`docs/scoring.md`](docs/scoring.md).
 
-## Running locally
+## Migration status: Django + Django Ninja rewrite (pre-cutover)
+
+The FastAPI app in `backend/` is being replaced by a Django 6 + Django Ninja
+app in `django_app/`. The new app is byte-parity-verified against the frozen
+FastAPI oracle (slices F1–F3, X1–X4, S1–S7; I1 readiness verified). Until the
+**I1 cutover**, `backend/` stays the deployable oracle + rollback target and is
+**frozen — do NOT edit it**. New work happens in `django_app/`. The instructions
+below give the Django commands first; the **frozen** FastAPI commands are kept
+verbatim afterwards for the oracle/rollback path. See
+[`django_app/README.md`](django_app/README.md) for the full layout and the env
+mapping, and `.plan/MIGRATION_REHEARSAL.md` for the cutover runbook.
+
+## Running locally (Django — the new app)
 
 Two terminals:
 
 ```bash
-# Postgres
+# Postgres (seeded scratch DBs: bgx_django, bgx_oracle)
 docker compose up -d postgres
 
-# Terminal A — backend
-cd backend && ./start.sh            # uvicorn on :5001 with --reload
+# Terminal A — Django backend (ASGI; the prod process model)
+cd django_app
+DATABASE_URL=postgresql://bgx:bgx@localhost:5432/bgx_django \
+  gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker -b 127.0.0.1:5001
+# (dev alt: DATABASE_URL=... python manage.py runserver 5001)
 
-# Terminal B — frontend
+# Terminal B — frontend (unchanged)
 cd frontend && npm install && npm run dev   # Astro on :4321, /api proxied to :5001
 ```
 
-Seed once: `cd backend && python -m scripts.import_2025`.
+Migrate + seed once (local scratch DB only — NEVER prod):
+
+```bash
+cd django_app
+DATABASE_URL=postgresql://bgx:bgx@localhost:5432/bgx_django python manage.py migrate
+DATABASE_URL=postgresql://bgx:bgx@localhost:5432/bgx_django python manage.py seed_all
+# (per-year importers also exist: seed_new, import_2025, import_race_day,
+#  upsert_calendar, scoring_diff_2026, bootstrap_admin)
+```
+
+### Frozen FastAPI app (oracle / rollback only — do NOT edit `backend/`)
+
+```bash
+docker compose up -d postgres
+cd backend && ./start.sh            # uvicorn on :5001 with --reload
+# Seed once: cd backend && python -m scripts.import_2025
+```
 
 ## Tests
 
+Two-tier verification for the Django app (orchestrator decision B):
+
 ```bash
-cd backend
-pytest                              # 99 tests: contract, slug, mount order,
-                                    # legacy redirects, CORS absence, track,
-                                    # 2025 golden
+cd django_app
+# Tier-1 — fast, no live DB, gates every slice (~268 passed / 5 skipped):
+pytest -m "not parity"
+# Tier-2 — needs the seeded Postgres, the hard I1 parity gate
+#          (~114 passed / 1 xfailed):
+DATABASE_URL=postgresql://bgx:bgx@localhost:5432/bgx_django pytest -m parity
 ```
+
+Frozen FastAPI suite (oracle only): `cd backend && pytest`.
 
 ## Build the production image
 
 ```bash
-./scripts/build-image.sh bgx-dashboard:latest
-# Probes localhost:5001/health, then multi-stage Docker build.
+# Django flavor (the new app — Stage 2 = manage.py migrate + gunicorn ASGI):
+./scripts/build-image.sh bgx-dashboard:latest django   # -> Dockerfile.django
+# Frozen FastAPI flavor (oracle / rollback; default if 2nd arg omitted):
+./scripts/build-image.sh bgx-dashboard:latest          # -> Dockerfile
+# Both probe localhost:5001/health, then run the multi-stage Docker build.
+# Stage 1 (Astro SSG) is identical for both flavors.
 ```
 
 ## Review artifacts
