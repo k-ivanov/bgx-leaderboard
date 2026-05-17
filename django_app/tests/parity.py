@@ -56,16 +56,71 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Optional
 
-# Repo root = …/django_app/tests/parity.py → parents[2].
+# This checkout = …/django_app/tests/parity.py → parents[2]. May be a LINKED
+# git worktree (.claude/worktrees/agent-…) — the new Django app + its tests
+# live HERE.
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BACKEND_DIR = REPO_ROOT / "backend"
 DJANGO_DIR = REPO_ROOT / "django_app"
-BACKEND_PYTHON = BACKEND_DIR / ".venv" / "bin" / "python"
 
-# The F3 venv that runs the NEW app subprocess. Default to the F3-created
-# venv; overridable so CI / the container can point at its own interpreter.
+
+def _main_repo_root() -> Path:
+    """Resolve the MAIN worktree root (where the frozen ``backend/`` + the
+    shared venvs live).
+
+    The frozen ``backend/`` parity oracle and the heavyweight venvs are NOT
+    duplicated per linked worktree (venvs aren't committed; ``backend/`` is
+    frozen + shared). When tests run from a linked worktree, ``backend/.venv``
+    and ``.venv-f3`` do not exist under ``REPO_ROOT``. Resolve the main repo:
+      1. ``BGX_MAIN_REPO`` env override (CI / container), else
+      2. git's common dir parent (``git rev-parse --git-common-dir`` →
+         ``…/.git`` → its parent is the main worktree), else
+      3. strip a trailing ``.claude/worktrees/<id>`` suffix, else
+      4. fall back to this checkout (single-worktree / main-repo run).
+    """
+    override = os.getenv("BGX_MAIN_REPO")
+    if override and Path(override).is_dir():
+        return Path(override).resolve()
+    try:
+        import subprocess as _sp
+
+        common = _sp.check_output(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=str(REPO_ROOT),
+            text=True,
+        ).strip()
+        common_path = (REPO_ROOT / common).resolve() if not Path(common).is_absolute() else Path(common)
+        # common dir is ``<main>/.git`` (or a worktrees subdir under it).
+        cand = common_path.parent
+        if cand.name == ".git":
+            cand = cand.parent
+        if (cand / "backend").is_dir():
+            return cand
+    except Exception:
+        pass
+    parts = REPO_ROOT.parts
+    if ".claude" in parts:
+        i = parts.index(".claude")
+        cand = Path(*parts[:i])
+        if (cand / "backend").is_dir():
+            return cand
+    return REPO_ROOT
+
+
+MAIN_REPO_ROOT = _main_repo_root()
+# Frozen oracle tree + its venv live in the MAIN repo (shared, not per-worktree).
+BACKEND_DIR = Path(os.getenv("BGX_BACKEND_DIR", str(MAIN_REPO_ROOT / "backend")))
+BACKEND_PYTHON = Path(
+    os.getenv("BGX_BACKEND_PYTHON", str(BACKEND_DIR / ".venv" / "bin" / "python"))
+)
+
+# The F3 venv that runs the NEW app subprocess. The new app's code lives in
+# THIS checkout (DJANGO_DIR), but the interpreter is the shared .venv-f3 in
+# the main repo (not committed, not per-worktree). Overridable for CI.
 F3_PYTHON = Path(
-    os.getenv("F3_DJANGO_PYTHON", str(REPO_ROOT / ".venv-f3" / "bin" / "python"))
+    os.getenv(
+        "F3_DJANGO_PYTHON",
+        str(MAIN_REPO_ROOT / ".venv-f3" / "bin" / "python"),
+    )
 )
 
 # Two dedicated, identically-seeded DBs — one per stack. No shared state.
