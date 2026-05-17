@@ -20,19 +20,31 @@ class CoreConfig(AppConfig):
     verbose_name = "BGX core (models, admin, importers)"
 
     def ready(self) -> None:
-        """F3 hook (additive — does not alter F2's auto-field pin above).
+        """F3 + parity-polish hooks (additive — does not alter F2's
+        auto-field pin above).
 
-        Pin the serialization-parity JSON renderer onto the FROZEN single
-        ``NinjaAPI`` instance. ``api/__init__.py`` is FROZEN (F1, decision
-        I1-arch=A) and constructs the API WITHOUT a ``renderer=`` arg, so it
-        defaults to Ninja's unpinned ``JSONRenderer`` (spaces after every
-        ``,``/``:`` + every Cyrillic name ``\\uXXXX``-escaped — NOT byte-equal
-        to the FastAPI parity oracle). Ninja reads ``api.renderer`` LIVE per
-        request, so reassigning it at app-ready time is fully effective and
-        edits no frozen file. Idempotent. See
-        ``api/renderers.py`` for the full pinned spec + the one documented
-        Content-Type divergence.
+        All global ``NinjaAPI`` behavior is wired here, via the established
+        app-ready idiom, because ``api/__init__.py`` + ``config/urls.py`` are
+        FROZEN (F1, decision I1-arch=A) and Ninja reads these attributes LIVE
+        off the singleton per request / per schema build — so reassigning
+        them at app-ready time is fully effective and edits no frozen file.
+        Each call is idempotent.
+
+        1. ``pin_parity_renderer()`` (F3 + ledger #1) — pin the
+           serialization-parity ``ParityJSONRenderer`` AND the bare
+           ``application/json`` Content-Type onto the singleton (the API is
+           constructed WITHOUT a ``renderer=`` arg, so it would otherwise use
+           Ninja's unpinned ``JSONRenderer`` + a ``; charset=utf-8`` header,
+           NOT byte-equal to the FastAPI oracle). See ``api/renderers.py``.
+        2. ``install_parity_hooks()`` (ledger #2 + #6) — register the
+           byte-exact slowapi/FastAPI ``Throttled`` 429 handler, and pin the
+           FastAPI-convention operationId generator + the OpenAPI
+           post-processor (422 + ``HTTPValidationError`` / ``ValidationError``
+           components + ``HTTPBasic`` security + ``/health`` + canonical
+           parameter order). See ``api/parity_hooks.py``.
         """
+        from api.parity_hooks import install_parity_hooks
         from api.renderers import pin_parity_renderer
 
         pin_parity_renderer()
+        install_parity_hooks()
