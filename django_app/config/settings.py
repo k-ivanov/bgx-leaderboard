@@ -348,3 +348,43 @@ CSRF_COOKIE_SECURE = not DEBUG
 # the adoption contract so parallel agents editing this file do not "fix" the
 # AutoField/BigAutoField split or re-add a core/DATABASES entry.
 # === end F2: models/db ===
+
+# === X3: admin ===
+# Owned by X3 (task plan §X3). ADDITIVE-ONLY block — appended after the
+# F2 block; nothing above is reordered or rewritten. It performs ONE
+# augmentation, using the exact list-mutation pattern the X2 block above
+# already uses for MIDDLEWARE: it swaps the F1 `"django.contrib.admin"`
+# INSTALLED_APPS entry for X3's `AdminConfig` subclass so the global
+# `django.contrib.admin.site` (the lazy proxy the FROZEN config/urls.py
+# already mounted at `/admin/`) resolves to the GATED `BGXAdminSite`.
+#
+# Why this is the only viable mechanism: config/urls.py is FROZEN and
+# already wires `path("admin/", admin.site.urls)`; the disable-when-unset
+# opt-in (parity with the old ADMIN_PASSWORD="" => admin-absent gate)
+# therefore CANNOT be done by env-gating that include. Pointing the
+# default admin site at a gated subclass via `AdminConfig.default_site`
+# is the Django-supported way to change the behaviour behind that frozen
+# URL without editing it. core/admin_site.py 404s every admin view when
+# admin is not configured (see core/ADMIN_BOOTSTRAP.md).
+#
+# This REPLACES (does not append) the admin app entry: two admin
+# AppConfigs would double-load the admin app. Replacement-in-place of a
+# single list element is still additive w.r.t. the F1 literal (the F1
+# `INSTALLED_APPS = [...]` definition is not re-typed or reordered) — the
+# same contract the X2 MIDDLEWARE mutation honours.
+_ADMIN_APP_OLD = "django.contrib.admin"
+_ADMIN_APP_NEW = "core.admin_site.BGXAdminConfig"
+if _ADMIN_APP_OLD in INSTALLED_APPS and _ADMIN_APP_NEW not in INSTALLED_APPS:
+    INSTALLED_APPS = [
+        _ADMIN_APP_NEW if app == _ADMIN_APP_OLD else app
+        for app in INSTALLED_APPS
+    ]
+
+# Admin opt-in switch (Django-native replacement for the old
+# ADMIN_PASSWORD gate). Read at REQUEST time by
+# core.admin_site.is_admin_configured (not import-bound here) so a
+# freshly bootstrapped container or a test flips without a restart.
+# Unset => fall back to the provisioning signal (a superuser exists);
+# falsey => hard-disabled. Mirrors backend/app/config.py:21-27 semantics.
+ADMIN_ENABLED = os.getenv("ADMIN_ENABLED")
+# === end X3: admin ===
