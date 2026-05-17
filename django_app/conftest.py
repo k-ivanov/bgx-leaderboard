@@ -74,6 +74,33 @@ def _tcp_open(host: str, port: int, timeout: float = 1.0) -> bool:
         return False
 
 
+def _pg_host_port(url: str) -> tuple[str, int]:
+    """``postgresql[+driver]://…:PORT/db`` → ``(host, port)``.
+
+    Strips any SQLAlchemy ``+driver`` suffix so ``urlparse`` sees a plain
+    scheme, then extracts the host/port the seeded DB actually lives at —
+    so reachability is probed against the URL we will bind to, NOT a
+    hardcoded ``localhost:5432`` (the connection-rebind determinism bug:
+    the old probe could pass while the real seeded host was unreachable).
+    """
+    from urllib.parse import urlparse
+
+    clean = url
+    for pre in (
+        "postgresql+psycopg2://",
+        "postgresql+psycopg://",
+        "postgres+psycopg2://",
+    ):
+        if clean.startswith(pre):
+            clean = "postgresql://" + clean[len(pre):]
+            break
+    try:
+        p = urlparse(clean)
+        return p.hostname or "localhost", p.port or 5432
+    except Exception:
+        return "localhost", 5432
+
+
 if not os.getenv("DATABASE_URL"):
     if _tcp_open("localhost", 5432):
         os.environ["DATABASE_URL"] = _DEFAULT_DB_URL
@@ -81,8 +108,35 @@ if not os.getenv("DATABASE_URL"):
         os.environ.setdefault("DJANGO_ALLOW_NO_DB", "1")
 
 
-def _postgres_reachable() -> bool:
-    return _tcp_open("localhost", 5432) and not os.getenv("DJANGO_ALLOW_NO_DB")
+def _seeded_pg_reachable() -> bool:
+    """TCP-probe the host/port the ``seeded_orm`` fixture will actually bind
+    to (``SEEDED_NEW_DB_URL``), not a hardcoded ``localhost:5432``.
+
+    A green here is necessary-but-not-sufficient: ``seeded_orm`` ALSO
+    verifies the bound connection with a real query and SKIPs (never
+    ERRORs / never silently uses the sqlite no-DB fallback) if the
+    connection cannot actually be opened — robust to intermittent
+    reachability between this probe and the bind.
+    """
+    if os.getenv("DJANGO_ALLOW_NO_DB"):
+        return False
+    host, port = _pg_host_port(SEEDED_NEW_DB_URL)
+    return _tcp_open(host, port)
+
+
+def _seeded_skip_message() -> str:
+    """Precise skip reason + the exact command to start + seed Postgres."""
+    host, port = _pg_host_port(SEEDED_NEW_DB_URL)
+    return (
+        f"seeded Postgres for the bgx_django parity DB unreachable at "
+        f"{host}:{port} (seeded_orm requires a live, seeded Postgres — it "
+        f"never falls back to the sqlite no-DB path). Start + seed it:\n"
+        f"  docker compose up -d postgres\n"
+        f"  cd backend && DATABASE_URL={SEEDED_NEW_DB_URL} "
+        f".venv/bin/python -m alembic upgrade head && "
+        f"DATABASE_URL={SEEDED_NEW_DB_URL} "
+        f".venv/bin/python -m scripts.seed_all"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -97,15 +151,8 @@ def seeded_orm(django_db_blocker):
     completely unaffected. Tests using this fixture MUST stay read-only on the
     8 domain tables (parity invariant).
     """
-    if not _postgres_reachable():
-        pytest.skip(
-            "no Postgres on localhost:5432. Start + seed it:\n"
-            "  docker compose up -d postgres\n"
-            "  cd backend && DATABASE_URL=" + SEEDED_NEW_DB_URL + " "
-            ".venv/bin/python -m alembic upgrade head && "
-            "DATABASE_URL=" + SEEDED_NEW_DB_URL + " "
-            ".venv/bin/python -m scripts.seed_all"
-        )
+    if not _seeded_pg_reachable():
+        pytest.skip(_seeded_skip_message())
 
     import dj_database_url
     from django.db import connections
@@ -122,13 +169,44 @@ def seeded_orm(django_db_blocker):
     # Belt-and-suspenders: nothing should create/destroy this DB.
     default["TEST"]["NAME"] = cfg["NAME"]
     default["TEST"]["MIGRATE"] = False
-    # Drop any connection opened against the old config.
+    # Drop any connection opened against the old config (incl. a stale
+    # sqlite :memory: handle from the settings no-DB fallback path).
     connections["default"].close()
 
+    def _restore() -> None:
+        connections["default"].close()
+        default.clear()
+        default.update(saved)
+
     with django_db_blocker.unblock():
+        # Verify the rebound connection ACTUALLY works before any test runs.
+        # The TCP probe above can pass while the seeded DB is unreachable at
+        # bind time (intermittent reachability, wrong port/host, sqlite
+        # no-DB fallback already loaded into the settings DATABASES). A
+        # Postgres-REQUIRED fixture must NEVER let that surface as an
+        # `sqlite3.OperationalError: no such table` ERROR or a raw
+        # `django.db.OperationalError` — it cleanly SKIPs with the exact
+        # command instead (never fakes a green, never the sqlite path).
+        from django.db import OperationalError as DjangoOperationalError
+        from django.db import connection as _conn
+
+        try:
+            if _conn.vendor != "postgresql":
+                raise DjangoOperationalError(
+                    f"seeded_orm bound a {_conn.vendor!r} connection, not "
+                    f"postgresql (settings no-DB sqlite fallback was active)"
+                )
+            with _conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        except Exception as exc:  # connection unreachable / wrong backend
+            _restore()
+            pytest.skip(f"{_seeded_skip_message()}\n  (probe-then-bind verify failed: {exc})")
+
         from core.models import Season
 
         if not Season.objects.filter(year=2025).exists():
+            _restore()
             pytest.skip(
                 f"bgx_django not seeded with the 2025 golden data. Seed it:\n"
                 f"  cd backend && DATABASE_URL={SEEDED_NEW_DB_URL} "
@@ -136,10 +214,8 @@ def seeded_orm(django_db_blocker):
             )
         yield
 
-    # Restore the original default config + drop the rebporary connection.
-    connections["default"].close()
-    default.clear()
-    default.update(saved)
+    # Restore the original default config + drop the temporary connection.
+    _restore()
 
 
 @pytest.fixture()
