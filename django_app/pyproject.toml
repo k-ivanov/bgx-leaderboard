@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "bgx-dashboard-django"
 version = "0.1.0"
@@ -22,6 +26,14 @@ dev = [
     "pytest-django>=4.8",
     "httpx>=0.27",
 ]
+
+# Flat layout: explicitly scope package discovery so `pip install -e .` and the
+# container build resolve the Django packages (and their subpackages:
+# core.migrations, core.management.commands, api.schemas, …). Without this,
+# setuptools auto-discovery fails on the multi-top-level flat layout.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["config*", "core*", "api*", "redirects*"]
 
 [tool.pytest.ini_options]
 # pytest-django harness. DJANGO_SETTINGS_MODULE wires Django; DJANGO_ALLOW_NO_DB
