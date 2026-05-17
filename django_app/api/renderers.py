@@ -62,24 +62,30 @@ THE SERIALIZATION SPEC (pinned, byte-exact vs the FastAPI oracle)
         future slice that forgets the ``float`` annotation FAILS LOUDLY
         instead of silently shipping ``"137.00"``.
 
-KNOWN, ACCEPTED, PARITY-SAFE DIVERGENCE (documented for I1)
------------------------------------------------------------
+CONTENT-TYPE PARITY (divergence ledger #1 — RESOLVED in parity-polish)
+----------------------------------------------------------------------
 The response **body bytes** are byte-identical to the oracle. The
-``Content-Type`` header is NOT: the frozen ``NinjaAPI.create_response``
-builds it from ``f"{renderer.media_type}; charset={renderer.charset}"``, so
-Ninja emits ``application/json; charset=utf-8`` while Starlette emits bare
-``application/json``. This is:
-  * RFC 9110 §8.3 equivalent (``charset`` is advisory for ``application/json``,
-    which is always UTF-8);
-  * tolerated by every existing consumer — the ported suite asserts
-    ``content-type.startswith("application/json")`` (passes), and the Astro
-    frontend / its ``openapi-typescript`` client never assert the response
-    ``Content-Type`` (they only SET it on requests);
-  * not fixable from F3 without editing the FROZEN ``api/__init__.py`` /
-    Ninja's ``create_response`` (out of scope, decision I1-arch=A).
-``media_type`` is kept exactly ``"application/json"`` so the prefix matches.
-``assert_json_parity`` therefore compares JSON BODIES (the F3 contract), and
-the header delta is recorded here + surfaced to I1, not silently absorbed.
+``Content-Type`` header used to differ: the frozen ``NinjaAPI`` builds it
+from ``get_content_type() == f"{renderer.media_type}; charset={renderer.charset}"``,
+so Ninja emitted ``application/json; charset=utf-8`` while Starlette emits
+bare ``application/json`` (the F3-era documented divergence). The
+parity-polish slice (divergence ledger #1) closes this so the header is
+byte-identical too:
+
+  * ``media_type`` is (and stays) exactly ``"application/json"`` — no
+    charset token in the renderer itself.
+  * ``get_content_type`` is the ONLY place Ninja assembles the header
+    (``main.py`` ``create_response`` + ``create_temporal_response``), and it
+    reads ``self.get_content_type()`` LIVE off the singleton instance — the
+    same live-attribute mechanism the renderer pin already exploits. So
+    ``install()`` ALSO pins a bound ``api.get_content_type`` returning the
+    bare ``renderer.media_type`` (``"application/json"``, no ``; charset=``).
+    This edits NO frozen file (the F1-frozen ``api/__init__.py`` /
+    ``config/urls.py`` are untouched; Ninja's own ``main.py`` is a library
+    file, not project source) and is wired through the SAME established
+    app-ready hook (``core.apps.CoreConfig.ready`` → ``pin_parity_renderer``).
+    Idempotent. ``assert_json_parity``'s content-type check now passes on the
+    full ``application/json`` value, not merely the prefix.
 
 WIRING (no FROZEN-file edit)
 ----------------------------
@@ -91,13 +97,17 @@ per request inside ``create_response`` (``self.renderer.render(...)`` +
 ``self.get_content_type()``) — it is NOT bound at route-registration time.
 F3 therefore pins it by REASSIGNING ``api.renderer`` on the singleton at
 Django app-ready time (``core.apps.CoreConfig.ready`` →
-``api.renderers.pin_parity_renderer``). This touches no frozen file and is
-idempotent. ``install()`` is also safe to call directly in tests.
+``api.renderers.pin_parity_renderer``). The parity-polish slice extends the
+SAME ``install()`` to also reassign ``api.get_content_type`` (divergence
+ledger #1) — read live the same way, same singleton, same ready hook, no
+frozen edit. This touches no frozen file and is idempotent. ``install()`` is
+also safe to call directly in tests.
 """
 
 from __future__ import annotations
 
 import json
+from types import MethodType
 from typing import Any
 
 from django.http import HttpRequest
@@ -113,9 +123,12 @@ class ParityJSONRenderer(BaseRenderer):
     """
 
     media_type = "application/json"
-    # NinjaAPI.get_content_type() => f"{media_type}; charset={charset}".
-    # Starlette emits bare "application/json"; the "; charset=utf-8" suffix
-    # is the documented, parity-safe divergence (see module docstring).
+    # NinjaAPI.get_content_type() would build f"{media_type}; charset={charset}".
+    # divergence-ledger #1 (parity-polish) pins a bare `get_content_type` on
+    # the singleton in install() so the emitted header is exactly
+    # `media_type` ("application/json") — byte-identical to Starlette. `charset`
+    # is retained only because Ninja's BaseRenderer declares it; it no longer
+    # reaches the response header.
     charset = "utf-8"
 
     def render(self, request: HttpRequest, data: Any, *, response_status: int) -> Any:
@@ -129,15 +142,39 @@ class ParityJSONRenderer(BaseRenderer):
         )
 
 
-def install(api) -> None:
-    """Pin ``ParityJSONRenderer`` onto a ``NinjaAPI`` instance (idempotent).
+def _bare_json_content_type(self) -> str:
+    """Drop-in for ``NinjaAPI.get_content_type`` — bare ``application/json``.
 
-    Reassigns the live ``api.renderer`` attribute — effective immediately and
-    per-request because Ninja reads it live in ``create_response``. No frozen
-    file is edited.
+    Ninja's stock implementation returns
+    ``f"{self.renderer.media_type}; charset={self.renderer.charset}"``.
+    Starlette's ``JSONResponse`` emits a bare ``application/json`` (no
+    charset). Returning ``self.renderer.media_type`` (``"application/json"``)
+    makes the Content-Type byte-identical to the FastAPI parity oracle
+    (divergence ledger #1). Bound as an instance attribute on the singleton so
+    it shadows the unbound class method WITHOUT editing any frozen file.
+    """
+    return self.renderer.media_type
+
+
+def install(api) -> None:
+    """Pin ``ParityJSONRenderer`` + bare Content-Type onto a ``NinjaAPI``
+    instance (idempotent).
+
+    Reassigns the live ``api.renderer`` attribute AND the live
+    ``api.get_content_type`` bound method — both are read live per-request by
+    Ninja's ``create_response`` (``self.renderer.render(...)`` +
+    ``self.get_content_type()``), so reassigning them on the singleton at
+    app-ready time is fully effective and edits NO frozen file. Idempotent.
     """
     if not isinstance(api.renderer, ParityJSONRenderer):
         api.renderer = ParityJSONRenderer()
+    # divergence ledger #1: pin the bare `application/json` Content-Type.
+    # MethodType binds `self` so it behaves exactly like an overridden method
+    # (Ninja calls `self.get_content_type()`); the instance attribute shadows
+    # the unbound `NinjaAPI.get_content_type`. Idempotent: re-pinning the same
+    # function is a no-op in effect.
+    if getattr(api.get_content_type, "__func__", None) is not _bare_json_content_type:
+        api.get_content_type = MethodType(_bare_json_content_type, api)
 
 
 def pin_parity_renderer() -> None:
