@@ -92,12 +92,18 @@ def test_api_paths_not_caught_by_year_redirect() -> None:
     """The {year} pattern must not steal /api/* — the FROZEN urls.py mounts
     the NinjaAPI before the legacy 301s, so /api/* never 301s to /results.
 
-    (The oracle hit a live /api/seasons; here the S1 router is an empty F1
-    stub, so the equivalent invariant is: /api/* returns the API's own JSON
-    404, NOT a 301 redirect to /results.)
+    Updated for the F3 worked reference endpoint: F3 filled ``api/seasons.py``
+    so ``/api/seasons`` is now a LIVE DB-querying endpoint (200, parity with
+    the FastAPI oracle) — it is no longer the F1 empty stub that 404'd. This
+    routing test stays DB-free by design ("no DB needed", see module
+    docstring): the mount-order invariant — /api/* is served by the API band
+    and NEVER 301-redirected to /results — is proven on a genuinely UNMATCHED
+    /api/* path (which the API band 404s without touching the DB). The live
+    /api/seasons -> 200 parity is proven by the F3 parity rig
+    (tests/test_reference_parity.py), not here.
     """
-    r = client.get("/api/seasons")
-    assert r.status_code != 301
+    r = client.get("/api/no-such-endpoint")
+    assert r.status_code != 301  # never bounced to /results by the {year} 301
     assert r.status_code == 404
     assert r.headers["Content-Type"].startswith("application/json")
 
