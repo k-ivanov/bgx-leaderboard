@@ -63,7 +63,7 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from ninja import Query, Router
+from ninja import Path, Query, Router
 from ninja.errors import HttpError
 
 from api.deps import YearPath, resolve_season
@@ -100,6 +100,12 @@ career_router = Router()
 # missing / too-long ``q`` or an out-of-range ``limit``.
 CareerSlugQ = Annotated[str, Query(min_length=1, max_length=128)]
 SearchQ = Annotated[str, Query(min_length=1, max_length=64)]
+# Path-param constraints mirroring the FastAPI oracle
+# (backend/app/api/riders.py: race_number Path(..., ge=0),
+# slug Path(..., min_length=1)) — same F3 YearPath Annotated idiom so Ninja
+# validates BEFORE the handler and emits the byte-identical 422.
+RaceNumberPath = Annotated[int, Path(ge=0)]
+SlugPath = Annotated[str, Path(min_length=1)]
 SearchLimit = Annotated[int, Query(ge=1, le=50)]
 
 
@@ -435,7 +441,7 @@ def search_riders(
 def list_riders_sharing_number(
     request,
     year: YearPath,
-    race_number: int,
+    race_number: RaceNumberPath,
 ) -> RiderDisambigOut:
     """GET /api/seasons/{year}/riders/{race_number} — disambiguation list.
 
@@ -499,8 +505,8 @@ def list_riders_sharing_number(
 def get_rider(
     request,
     year: YearPath,
-    race_number: int,
-    slug: str,
+    race_number: RaceNumberPath,
+    slug: SlugPath,
 ) -> RiderProfileOut:
     """GET /api/seasons/{year}/riders/{race_number}/{slug} — singular profile.
 

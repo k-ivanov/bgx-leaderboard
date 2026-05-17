@@ -115,6 +115,11 @@ def test_riders_endpoints_match_fastapi_source_signature() -> None:
     ``Path(..., ge=1900, le=2999)`` via F3 ``YearPath``); the search
     endpoints take the constrained ``q`` / ``limit`` query params (parity
     with FastAPI ``Query(..., min_length=…, max_length=…, ge=…, le=…)``).
+    The disambig/profile ``race_number`` and the profile ``slug`` path
+    params are constrained too — parity with the FastAPI oracle's
+    ``Path(..., ge=0)`` / ``Path(..., min_length=1)`` via the
+    ``RaceNumberPath`` / ``SlugPath`` aliases (closes the strict-parity gap
+    surfaced by the OpenAPI #6 work).
     """
     import typing
 
@@ -146,13 +151,19 @@ def test_riders_endpoints_match_fastapi_source_signature() -> None:
         )
         assert hints["year"] is YearPath, name
 
-    # The career match key + the profile/disambig race_number are plain
-    # path/query params; the slug profile takes a str slug path param.
+    # Constrained race_number / slug path-param parity with the FastAPI
+    # oracle (backend/app/api/riders.py: ``Path(..., ge=0)`` /
+    # ``Path(..., min_length=1)``) via the RaceNumberPath / SlugPath aliases.
+    disambig_hints = typing.get_type_hints(
+        riders_api.list_riders_sharing_number, include_extras=True
+    )
+    assert disambig_hints["race_number"] is riders_api.RaceNumberPath
+
     get_rider_hints = typing.get_type_hints(
         riders_api.get_rider, include_extras=True
     )
-    assert get_rider_hints["race_number"] is int
-    assert get_rider_hints["slug"] is str
+    assert get_rider_hints["race_number"] is riders_api.RaceNumberPath
+    assert get_rider_hints["slug"] is riders_api.SlugPath
 
 
 def test_riders_routes_existence_through_f3_resolver() -> None:
