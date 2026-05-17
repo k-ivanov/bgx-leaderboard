@@ -148,10 +148,18 @@ def test_root_serves_index(tmp_path) -> None:
 def test_unmatched_api_returns_json_not_found(tmp_path) -> None:
     """Unmatched /api/* → JSON {"detail": "Not Found"}, never HTML/404.html.
 
-    Covers both the catch-all guard (``/api`` no-slash edge) and Ninja's own
-    JSON 404 (``/api/<unknown>``)."""
+    Covers both the catch-all guard (``/api`` no-slash edge) and an
+    unmatched /api/ sub-path.
+
+    NOTE: the previous ``/api/seasons/999`` example was replaced — F3 filled
+    the worked reference endpoint (``api/seasons.py``), so ``/api/seasons/999``
+    is now a VALIDATED route returning 422 (year < the YearPath ge=1900
+    bound — byte-parity with the FastAPI oracle, which also 422s it), NOT an
+    "unmatched" path. ``/api/nope/also-missing`` is a genuinely unmatched
+    /api/ sub-path and exercises the same X1 catch-all JSON-404 guard this
+    test protects."""
     with fixture_dist(tmp_path):
-        for path in ("/api", "/api/", "/api/nope", "/api/seasons/999"):
+        for path in ("/api", "/api/", "/api/nope", "/api/nope/also-missing"):
             r = client.get(path)
             assert r.status_code == 404, f"{path} should be 404"
             assert r.headers["Content-Type"].startswith(
