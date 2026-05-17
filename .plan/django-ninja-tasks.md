@@ -535,3 +535,35 @@ _No new tasks deferred to TODOS — every finding was folded into the plan._
 - **CROSS-MODEL:** one tension (process model) — user kept gunicorn over Codex's objection. All other Codex findings were additive (no Claude/Codex disagreement) and accepted.
 - **UNRESOLVED:** 0 decisions unresolved. 1 critical gap (I1 big-bang cutover, no automated rollback) is **explicitly accepted by the user** at the Step 0 scope gate — recorded in `## Failure modes`, not re-litigated.
 - **VERDICT:** ENG review complete, all 11 findings resolved and folded into the task plan (13 → 14 tasks; new S7; X4 dependency corrected; F1/F2/F3/S4/S6/X2/X3/I1 hardened). NOT auto-CLEARED because of the user-accepted no-rollback critical gap — this is a deliberate scope choice, not an open issue. Eng review required gate is satisfied for planning; proceed to implementation when ready.
+
+---
+
+## I1 — PRODUCTION-CLONE REHEARSAL RESULT (local, fresh prod data)
+
+**Date:** 2026-05-17 · **Branch:** `django-ninja-migration` · **Run by:** orchestrated locally, **zero prod writes**, prod read-only (a single `pg_dump`).
+
+**Input:** fresh prod logical dump `db_dumps/prod-20260517-181027Z.sql.gz` (PostgreSQL 18.3, taken by the operator with their credentials), restored into a throwaway local DB `bgx_prodclone`. Real prod volumes: season 7 · category 46 · event 49 · rider 2099 · event_result 7091 · visit 845 · import_log 18 · analytics_salt 14 (richer than the seeded fixture — real analytics/visit rows; 0 editorial rows in prod).
+
+**§3.6 five-point verify — ALL PASS:**
+
+| Check | Result |
+|---|---|
+| `core.0001_initial … FAKED` (zero DDL on the 8 domain tables) | ✅ |
+| `before_cols ≡ after_cols` (zero column drift, 8 tables) | ✅ identical |
+| `before_idx ≡ after_idx` (zero index drift) | ✅ identical |
+| `before_cons ≡ after_cons` (zero constraint drift) | ✅ identical |
+| Row counts unchanged (no data loss) | ✅ identical |
+| Editorial `event.facebook_event_url/description` rows intact | ✅ identical (0 in prod) |
+| Django contrib tables created fresh | ✅ `auth_*`, `django_*` |
+| `django_migrations` has `core\|0001_initial` | ✅ |
+| Idempotent re-run (`migrate` again) | ✅ "No migrations to apply" |
+| New app serves real prod-clone data (HTTP smoke) | ✅ `/health`, `/api/seasons[/{year}]`, `/standings`, `/api/stats` 200, unmatched `/api/*` 404, legacy `/2025` 301 |
+
+**Conclusion:** the F2 schema-adoption / data-loss gate **PASSES against a real, fresh production clone** — the `core/models.py` + `0001_initial` schema pin is correct for actual prod, zero schema/data drift, fully idempotent. Combined with Tier-1 (268 passed), Tier-2 (115 passed / 0 xfailed, byte-parity vs FastAPI oracle), OpenAPI byte-parity, and frontend `openapi-typescript` structurally identical, the rewrite is **finalized and I1-ready on-branch**.
+
+**Still outstanding (deliberate HITL, NOT done — operator-only):**
+- [ ] **Human signature + date** on the §3 sign-off checklist (objective evidence above; the signature is the operator's to give — it unblocks the F2/I1 land).
+- [ ] Production DNS / Railway cutover (deploy `Dockerfile.django`) — the big-bang swap; **operator deferred** ("not yet").
+- [ ] Post-cutover: keep `backend/` as rollback target through the chosen window, then delete it.
+
+A **fresh** prod dump + this same §3 must be re-run at the actual cutover (this rehearsal used a clone taken 2026-05-17; prod drifts).
