@@ -361,6 +361,55 @@ class _Subapp:
 
 
 # ---------------------------------------------------------------------------
+# Deterministic visit-table normalization (parity-determinism defect #2)
+# ---------------------------------------------------------------------------
+
+# ``visit`` is RUNTIME analytics, NOT golden seed data — ``seed_data/`` carries
+# zero visit rows by design (visits are page-views, never championship facts).
+# So the two parity DBs are seeded byte-identical for the 8 GOLDEN domain
+# tables, but ``visit`` has no seed contract: across a session, S6 write-path
+# traffic / repeated rig runs accumulate ``Visit`` rows into the long-lived
+# shared ``bgx_django`` while ``bgx_oracle`` stays empty (or vice-versa) →
+# stats aggregation legitimately differs and the stats byte-parity compare
+# FAILS on data skew, not a real divergence. The harness must therefore
+# guarantee BOTH stacks observe IDENTICAL ``visit`` state before any
+# stats byte-compare. The deterministic, contract-correct state is the SAME
+# one ``seed_data/`` implies: an EMPTY ``visit`` table on BOTH sides (the S5
+# stats parity test's own assertions expect exactly this empty-aggregation
+# shape — ``total_visits == 0``, empty arrays). TRUNCATE is naturally
+# idempotent, so this survives repeated rig runs / accumulation.
+
+
+def _normalize_visit_state(database_url: str) -> None:
+    """TRUNCATE the ``visit`` table in ``database_url`` (idempotent).
+
+    psycopg is imported LAZILY so this module stays import-light for the
+    Tier-1 locked-venv collection (which has no PG driver and never spins
+    the rig). Only reached from ``ParityRig.__enter__``, which already
+    gated on both Postgres DBs being reachable + the F3 venv present.
+    Restricted to the single non-golden ``visit`` table — every other
+    table is identical golden seed data and is left untouched, so this is
+    behavior-preserving for all existing parity tests.
+    """
+    import psycopg
+
+    clean = database_url
+    for pre in (
+        "postgresql+psycopg2://",
+        "postgresql+psycopg://",
+        "postgres+psycopg2://",
+    ):
+        if clean.startswith(pre):
+            clean = "postgresql://" + clean[len(pre):]
+            break
+    with psycopg.connect(clean, autocommit=True) as conn:
+        # RESTART IDENTITY so the serial PK sequence is reset too — two
+        # freshly-normalized DBs are then byte-identical incl. any future
+        # id-bearing assertion. No-op fast path when already empty.
+        conn.execute("TRUNCATE TABLE visit RESTART IDENTITY")
+
+
+# ---------------------------------------------------------------------------
 # ParityRig — both stacks, identical seed, diffed over HTTP
 # ---------------------------------------------------------------------------
 
@@ -429,6 +478,20 @@ class ParityRig:
         reason = self.unavailable_reason(self.oracle_db, self.new_db)
         if reason is not None:
             raise OracleUnavailable(reason)
+
+        # Determinism gate (parity defect #2): before EITHER stack boots,
+        # normalize the non-golden ``visit`` table to an identical (empty)
+        # state in BOTH parity DBs, so any stats byte-compare reflects real
+        # serialization/behavior — never accumulated runtime-analytics skew.
+        # Idempotent (TRUNCATE) → survives repeated rig runs.
+        try:
+            _normalize_visit_state(self.oracle_db)
+            _normalize_visit_state(self.new_db)
+        except Exception as exc:  # pragma: no cover - sandbox-dependent
+            raise OracleUnavailable(
+                f"could not normalize the parity visit-table state "
+                f"(determinism precondition for stats parity): {exc}"
+            )
 
         self._oracle = _Subapp(
             name="FastAPI oracle (backend/.venv → bgx_oracle)",
