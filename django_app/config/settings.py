@@ -253,3 +253,29 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Django must NOT auto-append a slash and 301 — that would break the X1
 # redirect contract + the indexed static URLs.
 APPEND_SLASH = False
+
+
+# === F2: models/db ===
+# Additive-only block (F2 owns models + the fake-initial adoption). Nothing
+# above is reordered or rewritten. `core` is already in INSTALLED_APPS and the
+# real DATABASES config is already built (both added by F1) — F2 does not
+# duplicate them. The two F2-relevant facts pinned here:
+#
+#  1. The 8 domain tables (season, category, event, rider, event_result,
+#     visit, import_log, analytics_salt) are ADOPTED with ZERO schema change
+#     via `manage.py migrate --fake-initial` (decision I2-arch=A). Django's
+#     own auth/admin/sessions/contenttypes tables ARE created fresh — that is
+#     expected. Full proof: core/MIGRATION_PARITY.md. HITL prod-clone
+#     rehearsal runbook: core/MIGRATION_REHEARSAL.md.
+#
+#  2. The project-wide DEFAULT_AUTO_FIELD stays BigAutoField (untouched
+#     above — it governs Django's freshly-created contrib tables). The `core`
+#     app overrides it to AutoField in core/apps.py because the real
+#     production *_id_seq sequences are 32-bit `integer` (Alembic
+#     sa.Integer() PKs); a BigAutoField id would be schema drift on the
+#     adopted tables. The override is intentionally scoped to `core` only.
+#
+# No new settings keys are required for F2 — this block is documentation of
+# the adoption contract so parallel agents editing this file do not "fix" the
+# AutoField/BigAutoField split or re-add a core/DATABASES entry.
+# === end F2: models/db ===
