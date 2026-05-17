@@ -181,3 +181,23 @@ def assert_json_parity():
     from tests.parity import assert_json_parity as _impl
 
     return _impl
+
+
+# Two-tier verification (orchestrator decision B, 2026-05-17).
+#
+# Tier-2 = any test that needs a seeded Postgres: it consumes the read-only
+# ``seeded_orm`` fixture or the subprocess ``parity_rig``. Auto-mark those
+# ``parity`` so:
+#   * the fast per-slice gate runs ``pytest -m "not parity"`` (no DB, locked
+#     venv, ~seconds) and must be fully green to land a serial slice;
+#   * the Postgres-backed gate runs ``pytest -m parity`` at every integration
+#     checkpoint and as the hard I1 cutover gate.
+# Detection is by FIXTURE NAME, so every S1–S7 slice that copies F3's
+# reference/parity template is tiered correctly with zero extra annotation.
+_PG_FIXTURES = {"seeded_orm", "parity_rig"}
+
+
+def pytest_collection_modifyitems(config, items):  # noqa: D401
+    for item in items:
+        if _PG_FIXTURES & set(getattr(item, "fixturenames", ())):
+            item.add_marker(pytest.mark.parity)

@@ -44,3 +44,12 @@ DJANGO_SETTINGS_MODULE = "config.settings"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+# Two-tier verification (orchestrator decision B, 2026-05-17). Tier-1 (fast,
+# no DB) gates every serial slice:  pytest -m "not parity"
+# Tier-2 (needs seeded Postgres) runs at integration checkpoints + the hard
+# I1 cutover gate:                  pytest -m parity
+# Tests are auto-tagged 'parity' by conftest.py when they use the seeded_orm
+# or parity_rig fixtures — no per-test annotation needed.
+markers = [
+    "parity: requires a seeded Postgres (Tier-2 — integration checkpoints + I1, not the per-slice gate)",
+]

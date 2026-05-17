@@ -24,10 +24,12 @@ def test_health_carries_security_headers():
 
 
 def test_api_carries_security_headers():
-    # Any /api/* path (F1 routers are empty placeholders → 404, but the
-    # headers must still be applied — same intent as the FastAPI test which
-    # tolerated 200/500).
-    res = client.get("/api/seasons")
+    # A genuinely UNMATCHED /api/* path: the Ninja API 404s it WITHOUT a DB
+    # hit, so this stays a Tier-1 (no-DB) check. (Previously hit /api/seasons,
+    # which F3 made a live DB-querying endpoint — un-staled, same pattern F3
+    # applied to the X1 routing tests.) Intent unchanged: security headers
+    # must be applied to an /api/* response regardless of status.
+    res = client.get("/api/no-such-endpoint")
     assert "X-Frame-Options" in res.headers
 
 
