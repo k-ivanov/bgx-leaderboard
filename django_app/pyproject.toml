@@ -1,0 +1,34 @@
+[project]
+name = "bgx-dashboard-django"
+version = "0.1.0"
+description = "BGX Hard Enduro Championship Dashboard — Django 6 + Django Ninja rewrite (side-by-side with the frozen FastAPI backend/ until I1)"
+requires-python = ">=3.12"
+
+# Pinned to the versions verified in F1. The frozen FastAPI app keeps its own
+# backend/pyproject.toml — this is a SEPARATE, side-by-side dependency set.
+dependencies = [
+    "django>=6.0,<7.0",
+    "django-ninja>=1.3",
+    "psycopg[binary]>=3.2",
+    "gunicorn>=21.0.0",
+    "uvicorn[standard]>=0.27",
+    "python-dotenv>=1.0",
+    "dj-database-url>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "httpx>=0.27",
+]
+
+[tool.pytest.ini_options]
+# pytest-django harness. DJANGO_SETTINGS_MODULE wires Django; DJANGO_ALLOW_NO_DB
+# lets the scaffold-level suite run without a live Postgres (F2 brings real
+# model tests + the prod-clone DB fixture). testpaths/pythonpath scoped to
+# django_app so the frozen backend/ test suite is never collected here.
+DJANGO_SETTINGS_MODULE = "config.settings"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
