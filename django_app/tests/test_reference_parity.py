@@ -99,30 +99,25 @@ def test_reference_422_validation_parity(
     assert o_err["type"] == n_err["type"]
 
 
-@pytest.mark.xfail(
-    reason=(
-        "X1-scope (NOT F3): an UNMATCHED /api/* path escapes the NinjaAPI "
-        "entirely and is answered by the X1 static_catchall, which returns "
-        "Django JsonResponse({'detail':'Not Found'}) with DEFAULT separators "
-        '(\'{"detail": "Not Found"}\' — space after the colon) while the '
-        "FastAPI FrontendStatic returns Starlette JSONResponse compact "
-        '(\'{"detail":"Not Found"}\'). The F3-pinned renderer cannot reach '
-        "this path because Ninja never matches the URL. Filed for the X1 "
-        "owner / I1: redirects.static_catchall._json_not_found must dump with "
-        "separators=(',',':'), ensure_ascii=False (mirror Starlette / the F3 "
-        "ParityJSONRenderer) to be byte-identical. Documented, not silently "
-        "absorbed — F3 does not fake a green here."
-    ),
-    strict=True,
-)
 def test_unmatched_api_404_parity_x1_known_gap(
     parity_rig, assert_json_parity
 ) -> None:
-    """DOCUMENTED X1 catch-all serialization gap discovered by the F3 rig.
+    """Unmatched ``/api/*`` 404 is now byte-identical to the oracle.
 
-    Kept as a strict xfail so (a) the divergence is recorded in code with a
-    precise repro, and (b) it auto-flips to a failure (alerting) the moment
-    X1 fixes it, prompting removal of this xfail.
+    Formerly a strict xfail documenting divergence ledger #5: an UNMATCHED
+    ``/api/*`` path escapes the NinjaAPI entirely and is answered by the X1
+    ``static_catchall``. It used to return Django ``JsonResponse`` with the
+    DEFAULT ``json.dumps`` separators (``{"detail": "Not Found"}`` — space
+    after the colon) while the FastAPI ``FrontendStatic`` returns Starlette's
+    compact ``{"detail":"Not Found"}``. The F3-pinned ``ParityJSONRenderer``
+    cannot reach this path because Ninja never matches the URL, so the bytes
+    had to be pinned at the catch-all itself.
+
+    The parity-polish slice fixed ``redirects._json_not_found`` to dump with
+    ``separators=(",",":"), ensure_ascii=False`` (mirroring Starlette / the F3
+    ParityJSONRenderer). This is now a normal passing assertion — the gap is
+    closed, so ``assert_json_parity`` (status + body bytes + serialization
+    format + content-type) must pass outright.
     """
     old = parity_rig.old("/api/totally-bogus-unmatched")
     new = parity_rig.new("/api/totally-bogus-unmatched")

@@ -210,8 +210,24 @@ def _resolve_frontend_dist() -> _Path | None:
 
 
 def _json_not_found() -> JsonResponse:
-    """JSON 404 — byte-shape parity with FrontendStatic's JSONResponse."""
-    return JsonResponse({"detail": "Not Found"}, status=404)
+    """JSON 404 — byte-IDENTICAL to FrontendStatic's Starlette JSONResponse.
+
+    divergence ledger #5: Django's ``JsonResponse`` defaults to
+    ``json.dumps``'s ``separators=(", ", ": ")`` → ``{"detail": "Not Found"}``
+    (a space after the colon), while Starlette's ``JSONResponse.render`` uses
+    ``separators=(",", ":")`` + ``ensure_ascii=False`` → compact
+    ``{"detail":"Not Found"}``. This catch-all path escapes the NinjaAPI
+    entirely (unmatched ``/api/*`` / ``/admin/*``), so the F3-pinned
+    ParityJSONRenderer never runs here — the bytes must be pinned at this
+    one site. ``json_dumps_params`` is forwarded straight to ``json.dumps``,
+    so this mirrors the Starlette params exactly (compact separators, raw
+    UTF-8) and is byte-identical to the oracle + the ParityJSONRenderer spec.
+    """
+    return JsonResponse(
+        {"detail": "Not Found"},
+        status=404,
+        json_dumps_params={"separators": (",", ":"), "ensure_ascii": False},
+    )
 
 
 def static_catchall(request, path: str = ""):
