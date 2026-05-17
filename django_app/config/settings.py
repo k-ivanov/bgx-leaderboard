@@ -424,3 +424,31 @@ ADMIN_ENABLED = os.getenv("ADMIN_ENABLED")
 #
 # No new settings keys are required for F3 — this block is documentation only.
 # === end F3: foundation/test ===
+
+# === S6: track payload guard ===============================================
+# Owned by S6 (task plan §S6). ADDITIVE-ONLY block — appended AFTER the
+# X2 + F2 + X3 + F3 blocks per this file's concurrency contract; nothing above
+# is reordered or rewritten. It performs ONE augmentation, using the EXACT
+# list-mutation discipline the X2 block above already uses for MIDDLEWARE
+# (the `if "<dotted path>" not in MIDDLEWARE: MIDDLEWARE = [..., *MIDDLEWARE]`
+# idempotent pattern) — it does NOT re-type or reorder the F1 MIDDLEWARE
+# literal.
+#
+# Source of truth: backend/app/main.py:88-93 — the FastAPI app added
+# `PayloadSizeLimitMiddleware` (the pre-parse 413 guard for POST /api/track,
+# using the F1-ported `TRACK_MAX_BYTES=2048` constant). S6 ports it as a
+# Django middleware that returns 413 from `process_request` — i.e. BEFORE the
+# view (so before Ninja parses the JSON), the same pre-parse guarantee the
+# Starlette `BaseHTTPMiddleware.dispatch` gave.
+#
+# Registered LAST in the list so it is the INNERMOST middleware: its
+# `process_request` runs after the security/session/CSRF layers and
+# immediately before URL resolution + the view, scoped strictly to
+# `POST /api/track` (every other request is a no-op pass-through). The
+# FROZEN `api/__init__.py` (the NinjaAPI instance) is NOT touched — the
+# throttle is wired separately via Ninja's per-operation `throttle=` arg on
+# the S6 route itself (`api/track.py`), the FROZEN-file-safe wiring point.
+_S6_PAYLOAD_GUARD = "core.track_guards.TrackPayloadSizeLimitMiddleware"
+if _S6_PAYLOAD_GUARD not in MIDDLEWARE:
+    MIDDLEWARE = [*MIDDLEWARE, _S6_PAYLOAD_GUARD]
+# === end S6: track payload guard ===========================================
