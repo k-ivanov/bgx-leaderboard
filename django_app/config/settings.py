@@ -348,3 +348,39 @@ CSRF_COOKIE_SECURE = not DEBUG
 # the adoption contract so parallel agents editing this file do not "fix" the
 # AutoField/BigAutoField split or re-add a core/DATABASES entry.
 # === end F2: models/db ===
+
+# === F3: foundation/test ===
+# Additive-only block (decision I4/I5/I7). Appended AFTER the X2 + F2 blocks
+# per the file's concurrency contract — nothing above is reordered or
+# rewritten. Like the F2 block, F3 needs NO new functional settings keys; the
+# serialization-parity renderer is pinned WITHOUT touching this file or the
+# FROZEN api/__init__.py. This block documents the F3 contract so parallel
+# agents editing settings.py don't "fix" or duplicate F3's wiring:
+#
+#  1. RENDERER PIN (decision I5-cq=A). The byte-parity JSON renderer
+#     (api.renderers.ParityJSONRenderer — Starlette-exact json.dumps params)
+#     is pinned onto the single FROZEN NinjaAPI instance at Django app-ready
+#     time via core.apps.CoreConfig.ready -> api.renderers.pin_parity_renderer
+#     (additive ready() hook; reads api.renderer LIVE per request). It is
+#     deliberately NOT a Django setting and NOT an edit to api/__init__.py
+#     (FROZEN, decision I1-arch=A). Do not add a NINJA renderer setting or a
+#     second pin path — there is exactly one, idempotent.
+#
+#  2. TEST DB / PARITY RIG (decision I7-test=A). pytest-django's DEFAULT test
+#     DB behaviour (isolated test_<DATABASE_URL-db>, real 0001_initial) is
+#     left UNTOUCHED so F2's @pytest.mark.django_db model tests keep clean
+#     isolation. The old<->new parity rig (tests/parity.py) instead spins the
+#     FROZEN backend/ FastAPI app AND the new Django app as SUBPROCESSES
+#     against two dedicated, identically-seeded DBs. These are configured by
+#     ENV VARS consumed only by the test harness — intentionally NOT Django
+#     settings (they must not affect the prod/runtime DB):
+#       ORACLE_DATABASE_URL   default postgresql://bgx:bgx@localhost:5432/bgx_oracle
+#       NEW_DATABASE_URL      default postgresql://bgx:bgx@localhost:5432/bgx_django
+#       BGX_MAIN_REPO / BGX_BACKEND_DIR / BGX_BACKEND_PYTHON / F3_DJANGO_PYTHON
+#                             — locate the shared frozen backend/ + venvs when
+#                               the suite runs from a linked git worktree.
+#     The runtime DATABASES config (built by F1, documented by F2) is the
+#     single source of truth for the deployed app and is NOT modified here.
+#
+# No new settings keys are required for F3 — this block is documentation only.
+# === end F3: foundation/test ===
