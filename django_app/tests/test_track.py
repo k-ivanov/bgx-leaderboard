@@ -29,12 +29,16 @@ Postgres is unavailable):
    concurrency/atomicity test: simulated UTC-midnight rollover + burst does
    not create duplicate salts or mis-bucket sessions.
 
-KNOWN, DOCUMENTED 429 BODY DIVERGENCE: slowapi rendered 429 as
-``{"error":"Rate limit exceeded: …"}``; Ninja's ``Throttled`` renders
-``{"detail":"Too many requests."}``. Not a parity regression — the old suite
-never exercised the limit, the frontend beacon ignores the response body, and
-OV3's acceptance is "the Nth request returns 429 with the configured limit"
-(status + limit), not body byte-parity. See ``core/track_guards.py``.
+429 BODY PARITY (divergence ledger #2 — RESOLVED in parity-polish):
+slowapi renders the 429 as ``{"error":"Rate limit exceeded: 10 per 1 minute"}``
+(no rate-limit headers — the oracle's Limiter ran ``headers_enabled=False``).
+Ninja's default ``Throttled`` would render ``{"detail":"Too many requests."}``.
+The parity-polish slice registers a ``Throttled`` exception handler
+(``api/parity_hooks.py``, wired via ``core.apps.CoreConfig.ready`` — no
+frozen-file edit) that reproduces slowapi's body byte-for-byte through the
+F3-pinned parity renderer + ledger-#1 bare content-type. The real-server 429
+integration test below now asserts that byte-exact body. See
+``core/track_guards.py`` (throttle wiring) + ``api/parity_hooks.py``.
 """
 
 from __future__ import annotations
@@ -580,8 +584,16 @@ def test_real_server_429_after_configured_limit() -> None:
 
         code, body = app.post_track({"page": "leaderboard"}, ip="198.51.100.10")
         assert code == 429, (code, body[:300])
-        # Documented divergence: Ninja Throttled body (not slowapi's).
-        assert json.loads(body) == {"detail": "Too many requests."}
+        # divergence ledger #2 (parity-polish) — RESOLVED. The
+        # api.parity_hooks Throttled handler now returns the slowapi/FastAPI
+        # 429 body byte-for-byte (slowapi renders
+        # ``{"error": f"Rate limit exceeded: {str(limit)}"}`` with
+        # ``str(parse("10/minute")) == "10 per 1 minute"`` and NO rate-limit
+        # headers — the oracle's Limiter ran headers_enabled=False). This is
+        # no longer a documented divergence; it is byte-parity.
+        assert json.loads(body) == {
+            "error": "Rate limit exceeded: 10 per 1 minute"
+        }
 
         # A different IP still gets through — proves per-IP bucketing via
         # real_client_ip (not a global counter).
