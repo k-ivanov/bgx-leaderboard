@@ -565,5 +565,9 @@ _No new tasks deferred to TODOS — every finding was folded into the plan._
 - [ ] **Human signature + date** on the §3 sign-off checklist (objective evidence above; the signature is the operator's to give — it unblocks the F2/I1 land).
 - [ ] Production DNS / Railway cutover (deploy `Dockerfile.django`) — the big-bang swap; **operator deferred** ("not yet").
 - [ ] Post-cutover: keep `backend/` as rollback target through the chosen window, then delete it.
+- [ ] **Django admin static assets not served in prod (found 2026-05-18, local admin use).** `/admin/` CSS/JS 404s under the prod runtime: `DEBUG=False`, no `whitenoise`, no `STATIC_ROOT`/`collectstatic` step, and FROZEN `config/urls.py` ends with X1's Astro-`dist/` catch-all (no `/static/` route, can't add one — frozen). `runserver`+`DJANGO_DEBUG=1` fixes it locally only; `gunicorn`/Railway serves admin **unstyled**. The frozen-urls + "0 KB JS / Astro SSG" design never accounted for Django admin's own assets. **I1 decision needed if operators use `/admin/` in prod:**
+  - *Recommended:* add `whitenoise` (`pip` + `WhiteNoiseMiddleware` near the top of `MIDDLEWARE`) via an **additive `# === I1: admin static ===` settings block** — same non-frozen additive pattern as X2/X3, intercepts `/static/` ahead of the catch-all, **no `urls.py` edit** — plus `python manage.py collectstatic --noinput` in `Dockerfile.django` Stage 2 before gunicorn.
+  - *Alternative:* front `/static/admin/*` via the CDN/edge, leaving the app unchanged.
+  - *Non-blocking iff* admin is intentionally kept **off** in prod (`ADMIN_ENABLED` unset → `/admin/*` is 404 anyway, X3 gate); then this is moot until admin is enabled. Decide explicitly at cutover — don't let it ship as a silent "admin works but unstyled".
 
 A **fresh** prod dump + this same §3 must be re-run at the actual cutover (this rehearsal used a clone taken 2026-05-17; prod drifts).
