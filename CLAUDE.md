@@ -12,7 +12,7 @@ profiles, and a race calendar.
 | Backend | FastAPI 0.110 + Pydantic v2 + SQLAlchemy 2 | `backend/app/` |
 | Data | Postgres + Alembic migrations | `backend/alembic/`, `backend/src/db/` |
 | Services (domain) | Pure-Python computed leaderboards + rider profiles | `backend/src/services/` |
-| Deploy | Single Docker image, Railway | `Dockerfile`, `railway.json` |
+| Deploy | Single Docker image on GHCR, pulled by the Hetzner VPS (`k-ivanov/vps-infra`) | `Dockerfile`, `.github/workflows/release.yml` |
 
 The refactor from FastHTML to FastAPI + Astro SSG was done across Phases 0–5.
 Full history: `.plan/refactor-plan.md` and the three review files alongside it.
