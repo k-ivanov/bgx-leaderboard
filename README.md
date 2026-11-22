@@ -95,7 +95,6 @@ CI runs the same on every push + PR — see `.github/workflows/ci.yml`.
 │   └── package.json
 ├── Dockerfile                # multi-stage: node → python
 ├── docker-compose.yml        # local Postgres + dashboard
-├── railway.json              # Railway deploy config
 ├── .github/workflows/        # CI: pytest + frontend build
 ├── docs/                     # scoring policy + (eventually) deploy notes
 ├── .plan/                    # historical refactor + review artifacts
