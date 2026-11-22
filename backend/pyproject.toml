@@ -11,6 +11,9 @@ dependencies = [
     "gunicorn>=21.0.0",
     "pydantic>=2.5",
     "sqlalchemy>=2.0,<3.0",
+    # sqladmin imports sqlalchemy.ext.asyncio, which needs greenlet; newer
+    # SQLAlchemy releases no longer install it by default.
+    "greenlet>=3.0",
     "psycopg2-binary>=2.9",
     "alembic>=1.13",
     "python-dotenv>=1.0",

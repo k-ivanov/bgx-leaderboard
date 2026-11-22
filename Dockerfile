@@ -80,6 +80,7 @@ RUN pip install --no-cache-dir --upgrade pip \
         "gunicorn>=21.0.0" \
         "pydantic>=2.5" \
         "sqlalchemy>=2.0,<3.0" \
+        "greenlet>=3.0" \
         "psycopg2-binary>=2.9" \
         "alembic>=1.13" \
         "python-dotenv>=1.0" \
