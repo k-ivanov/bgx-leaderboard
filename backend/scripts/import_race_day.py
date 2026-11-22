@@ -72,6 +72,8 @@ CLASS_MAP: dict[str, tuple[str, str]] = {
     "ЖЕНИ":              ("women",           "ЖЕНИ"),
     "СЕНЬОРИ 40+":       ("seniors_40",      "СЕНЬОРИ 40+"),
     "СЕНЬОРИ 50+":       ("seniors_50",      "СЕНЬОРИ 50+"),
+    # Class added in 2026 (first seen at Buhovo 2026).
+    "АДВЕНЧЪР":          ("adventure",       "АДВЕНЧЪР"),
 }
 
 # Sort order for categories within a season (applied on first creation).
@@ -85,6 +87,7 @@ CATEGORY_SORT_ORDER: dict[str, int] = {
     "seniors_40": 6,
     "seniors_50": 7,
     "seniors": 8,
+    "adventure": 9,
 }
 
 

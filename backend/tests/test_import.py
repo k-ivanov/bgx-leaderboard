@@ -5,7 +5,7 @@ Particularly the defensive trailing-time-token strip (P0 #4).
 
 import pytest
 
-from scripts.import_race_day import _split_name
+from scripts.import_race_day import CLASS_MAP, _normalize_class_label, _split_name
 
 
 @pytest.mark.parametrize(
@@ -49,3 +49,15 @@ def test_split_name_empty_after_strip():
     first, last = _split_name("1:02:03")
     assert first == ""
     assert last == ""
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("АДВЕНЧЪР", ("adventure", "АДВЕНЧЪР")),
+        ("АДВЕНЧЪР ДЕН 1", ("adventure", "АДВЕНЧЪР")),
+        ("СТАНДАРТ ДЖУНИЪР", ("standard_junior", "СТАНДАРТ-ДЖУНИЪР")),
+    ],
+)
+def test_class_labels_map_to_categories(label, expected):
+    assert CLASS_MAP[_normalize_class_label(label)] == expected

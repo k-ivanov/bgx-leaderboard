@@ -67,7 +67,7 @@ total_time, start_time, finish_time, points, gap_to_leader, partial_time
 
 | Column | Notes |
 |---|---|
-| `class` | Bulgarian label — `ПРОФИ`, `ЕКСПЕРТ`, `СТАНДАРТ`, `СТАНДАРТ-ДЖУНИЪР`, `ЖЕНИ`, `СЕНЬОРИ 40+`, `СЕНЬОРИ 50+`. Mapped to category codes by `CLASS_MAP` in `import_race_day.py:49`. Unknown labels get **silently skipped** — watch the importer's `(N skipped)` counter. |
+| `class` | Bulgarian label — `ПРОФИ`, `ЕКСПЕРТ`, `СТАНДАРТ`, `СТАНДАРТ-ДЖУНИЪР`, `ЖЕНИ`, `СЕНЬОРИ 40+`, `СЕНЬОРИ 50+`, `АДВЕНЧЪР`. Mapped to category codes by `CLASS_MAP` in `import_race_day.py:49`. Unknown labels get **silently skipped** — watch the importer's `(N skipped)` counter. |
 | `rider_name` | `Първо ФАМИЛИЯ` — last name in ALL CAPS. The importer uses casing to split. |
 | `total_time` | `H:MM:SS.cs` or `MM:SS.cs`. The display "Време" column. |
 | `points` | Float; nullable. |
