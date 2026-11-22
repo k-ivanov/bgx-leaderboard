@@ -107,6 +107,7 @@ export function categoryDisplayName(code: string, fallback?: string): string {
     women: 'Women',
     seniors_40: 'Senior 40+',
     seniors_50: 'Senior 50+',
+    adventure: 'Adventure',
   };
   return TABLE[code] ?? fallback ?? code;
 }
